@@ -69,7 +69,6 @@ add_subdirectory(Server)
 add_subdirectory(Input)
 add_subdirectory(Ui)
 add_subdirectory(Asset)
-add_subdirectory(Audio)
 
 add_subdirectory(KristalliProtocolModule)
 add_subdirectory(TundraLogicModule)
@@ -151,8 +150,6 @@ if (OPENASSETIMPORT)
     add_subdirectory(OpenAssetImport)        # Allows import of various mesh file formats
 endif()
 #add_subdirectory(TelepathyIMModule)     # Telepathy Messaging support. Depends on OgreRenderingModule.
-add_subdirectory(InWorldChatModule)     # Implements in-world text communication.
-add_subdirectory(CAVEStereoModule)	 # Implements CAVE and Stereoscopy functionality
 add_subdirectory (UiExternalModule)
 
 AddEntityComponent(EntityComponents/EC_ChatBubble EC_ChatBubble)   # declared by InWorldChatModule
