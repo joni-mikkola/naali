@@ -104,19 +104,16 @@ cd /$REX_DIR
 
 if [ $BRANCH == "tundra" ];
 then
-	cp /$REX_DIR/naali-deps/build/knet/lib/libkNet.so /$REX_DIR/$PACKAGE_NAME-$BRANCH-$VER-$ARCH/$FINAL_INSTALL_DIR-$BRANCH	
+		
 	mv $PACKAGE_NAME-$BRANCH-$VER-$ARCH/$FINAL_INSTALL_DIR-$BRANCH/scenes /$REX_DIR/$PACKAGE_NAME-$BRANCH-scenes-noarch/$FINAL_INSTALL_DIR-$BRANCH/
 	chmod -R a+rX $PACKAGE_NAME-$BRANCH-scenes-noarch
 	dpkg -b $PACKAGE_NAME-$BRANCH-scenes-noarch
 fi
+
+cp /$REX_DIR/naali-deps/build/knet/lib/libkNet.so /$REX_DIR/$PACKAGE_NAME-$BRANCH-$VER-$ARCH/$FINAL_INSTALL_DIR-$BRANCH
+
 chmod -R a+rX $PACKAGE_NAME-$BRANCH-$VER-$ARCH
 dpkg -b  $PACKAGE_NAME-$BRANCH-$VER-$ARCH
 errorCheck "Check for error with dpkg"
 	
-if [ $TAG == "none" ];
-then
-	mv $PACKAGE_NAME-$BRANCH-$VER-$ARCH.deb $PACKAGE_NAME-$BRANCH-$VER-$DATE-$BUILDNUMBER-$ARCH.deb
-else
-	mv $PACKAGE_NAME-$BRANCH-$VER-$ARCH.deb $PACKAGE_NAME-$BRANCH-$VER-$DATE-$BUILDNUMBER-$ARCH.deb
-fi
-
+mv $PACKAGE_NAME-$BRANCH-$VER-$ARCH.deb $PACKAGE_NAME-$BRANCH-$VER-$DATE-$BUILDNUMBER-$ARCH.deb

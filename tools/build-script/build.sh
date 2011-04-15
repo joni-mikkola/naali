@@ -165,11 +165,13 @@ then
 else
 	if [ $BRANCH == "tundra" ];
 	then
-	VER=`sudo grep "Tundra" Ui/NaaliMainWindow.cpp | cut -d 'v' -f2 -|cut -d '"' -f 1`
+	VER=`sudo grep "Tundra" Ui/UiMainWindow.cpp | cut -d 'v' -f2 -|cut -d '"' -f 1`
 	else
 	VER=`sudo grep "Naali_v" Application/main.cpp | cut -d 'v' -f2 | tail -1 |cut -d '"' -f1`
 	fi
 fi
+
+sudo git pull
 
 cd ../../../
 
@@ -208,6 +210,7 @@ fi
 
 #MOVE DEB FILES BACK TO OUR CURRENT DIRECTORY
 sudo chmod -R a+rX $INSTALL_DIR/$REX_DIR/
-sudo cp -f $INSTALL_DIR/$REX_DIR/*.deb ./
+sudo mv -f $INSTALL_DIR/$REX_DIR/*.deb ./
+
 
 sudo umount $INSTALL_DIR/proc
