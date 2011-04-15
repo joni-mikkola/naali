@@ -134,7 +134,7 @@ then
 	sudo git clone git://github.com/realXtend/naali.git naali
 fi
 
-sudo git clone ../../../. $INSTALL_DIR/$REX_DIR/naali
+sudo git clone ../../. $INSTALL_DIR/$REX_DIR/naali
 
 sudo chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
