@@ -32,9 +32,9 @@ using namespace kNet;
 namespace TundraLogic
 {
 
-Client::Client(TundraLogicModule* owner, Foundation::Framework* fw) :
+Client::Client(TundraLogicModule* owner) :
     owner_(owner),
-    framework_(fw),
+    framework_(owner->GetFramework()),
     loginstate_(NotConnected),
     reconnect_(false),
     client_id_(0)
@@ -54,13 +54,53 @@ void Client::Update(f64 frametime)
         CheckLogin();
 }
 
+void Client::Login(const QUrl& loginUrl)
+{
+    // We support tundra, http and https scheme login urls
+    QString urlScheme = loginUrl.scheme().toLower();
+    if (urlScheme.isEmpty())
+        return;
+    if (urlScheme != "tundra" && 
+        urlScheme != "http" && 
+        urlScheme != "https")
+        return;
+
+    // Parse values from url
+    QString username = loginUrl.queryItemValue("username").trimmed();
+    QString password = loginUrl.queryItemValue("password");
+    QString avatarurl = loginUrl.queryItemValue("avatarurl").trimmed();
+    QString protocol = loginUrl.queryItemValue("protocol").trimmed().toLower();
+    QString address = loginUrl.host();
+    int port = loginUrl.port();
+
+    // Validation: Username and address is the minimal set that with we can login with
+    if (username.isEmpty() || address.isEmpty())
+        return;
+    if (username.count(" ") > 0)
+        username = username.replace(" ", "-");
+    if (port < 0)
+        port = 2345;
+
+    // Set custom login parameters and login
+    if (!avatarurl.isEmpty())
+        SetLoginProperty("avatarurl", avatarurl);
+
+    Login(address, port, username, password, protocol);
+}
+
 void Client::Login(const QString& address, unsigned short port, const QString& username, const QString& password, const QString &protocol)
 {
+    // Make sure to logout, our scene manager gets confused when you login again
+    // when already connected to another or same server.
+    if (IsConnected())
+        Logout();
+
+    SetLoginProperty("address", address);
+    SetLoginProperty("port", QString::number(port));
     SetLoginProperty("username", username);
     SetLoginProperty("password", password);
-    SetLoginProperty("address", address);
     SetLoginProperty("protocol", protocol);
-    SetLoginProperty("port", QString::number(port));
+    
     kNet::SocketTransportLayer transportLayer = kNet::InvalidTransportLayer;
     if (protocol.toLower() == "tcp")
         transportLayer = kNet::SocketOverTCP;
@@ -76,10 +116,14 @@ void Client::Login(const QString& address, unsigned short port, kNet::SocketTran
         TundraLogicModule::LogError("Already running a server, cannot login to a world as a client");
         return;
     }
-    
+
     reconnect_ = false;
     if (protocol == kNet::InvalidTransportLayer)
+    {
+        TundraLogicModule::LogInfo("Client::Login: No protocol specified, using the default value.");
         protocol = owner_->GetKristalliModule()->defaultTransport;
+    }
+
     owner_->GetKristalliModule()->Connect(address.toStdString().c_str(), port, protocol);
     loginstate_ = ConnectionPending;
     client_id_ = 0;
@@ -130,14 +174,18 @@ void Client::SetLoginProperty(QString key, QString value)
 
 QString Client::GetLoginProperty(QString key)
 {
-    return properties[key.trimmed()];
+    key = key.trimmed();
+    if (properties.count(key) > 0)
+        return properties[key];
+    else
+        return "";
 }
 
-QString Client::LoginPropertiesAsXml()
+QString Client::LoginPropertiesAsXml() const
 {
     QDomDocument xml;
     QDomElement rootElem = xml.createElement("login");
-    for(std::map<QString, QString>::iterator iter = properties.begin(); iter != properties.end(); ++iter)
+    for(std::map<QString, QString>::const_iterator iter = properties.begin(); iter != properties.end(); ++iter)
     {
         QDomElement elem = xml.createElement(iter->first.toStdString().c_str());
         elem.setAttribute("value", iter->second.toStdString().c_str());

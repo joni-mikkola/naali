@@ -14,23 +14,19 @@
 #include "ServiceManager.h"
 #include "ThreadTaskManager.h"
 #include "RenderServiceInterface.h"
-#include "ConsoleServiceInterface.h"
-#include "ConsoleCommandServiceInterface.h"
-#include "NaaliApplication.h"
 #include "CoreException.h"
 #include "InputAPI.h"
 #include "FrameAPI.h"
 #include "AssetAPI.h"
 #include "GenericAssetFactory.h"
-#include "Audio.h"
+#include "AudioAPI.h"
 #include "ConsoleAPI.h"
-#include "UiServiceInterface.h"
 #include "DebugAPI.h"
 #include "SceneAPI.h"
 #include "ConfigAPI.h"
-
-#include "NaaliUi.h"
-#include "NaaliMainWindow.h"
+#include "UiAPI.h"
+#include "UiMainWindow.h"
+#include "VersionInfo.h"
 
 #include "SceneManager.h"
 #include "SceneEvents.h"
@@ -71,17 +67,22 @@ namespace Foundation
         headless_(false),
         log_formatter_(0),
         splitterchannel(0),
-        naaliApplication(0),
+        application(0),
         frame(new FrameAPI(this)),
-        console(new ConsoleAPI(this)),
+        console(0),
         ui(0),
         input(0),
         asset(0),
+        audio(0),
         debug(new DebugAPI(this)),
         scene(new SceneAPI(this))
     {
         ParseProgramOptions();
-        
+
+        /// \note Major becomes 1 when we stop breaking the API, which is still planned after 1.0.6 which is kind of an alpha of 1.0 still.
+        api_versioninfo_ = new ApiVersionInfo(this, 0, 6, 0, 0);
+        application_versioninfo_ = new ApplicationVersionInfo(this, 1, 0, 6, 0, "realXtend", "Tundra");
+
         if (commandLineVariables.count("help")) 
         {
             std::cout << "Supported command line arguments: " << std::endl;
@@ -91,24 +92,29 @@ namespace Foundation
         {
             if (commandLineVariables.count("headless"))
                 headless_ = true;
-            
 #ifdef PROFILING
             ProfilerSection::SetProfiler(&profiler_);
 #endif
             PROFILE(FW_Startup);
             platform_ = PlatformPtr(new Platform(this));
-        
+
             // Create config manager
             config_manager_ = ConfigurationManagerPtr(new ConfigurationManager(this));
-
             config_manager_->DeclareSetting(Framework::ConfigurationGroup(), std::string("window_title"), std::string("realXtend Naali"));
             config_manager_->DeclareSetting(Framework::ConfigurationGroup(), std::string("log_console"), bool(true));
             config_manager_->DeclareSetting(Framework::ConfigurationGroup(), std::string("log_level"), std::string("information"));
-            
+
             platform_->PrepareApplicationDataDirectory(); // depends on config
 
-            // Force install directory as the current working directory. Todo: we may not want to do this in all cases,
-            // but there is a huge load of places that depend on being able to refer to the install dir with .
+            // Instantiate our QApplication here, the install directory can only be trusted
+            // to be reported right from the QApplication that knows its executable.
+            // This will make us load modules etc. correctly even if the working dir is something else
+            // than our actual install dir.
+            application = new Application(this, argc_, argv_);
+
+            // Force install directory as the current working directory.
+            /** \Todo: we may not want to do this in all cases, but there is a huge load of places
+                that depend on being able to refer to the install dir with .*/
             boost::filesystem::current_path(platform_->GetInstallDirectory());
             
             // Now set proper path for config (one that also non-privileged users can write to)
@@ -126,12 +132,14 @@ namespace Foundation
                 // New INI based config api using QSettings
                 config = new ConfigAPI(this, QString::fromStdString(config_path));
             }
+
             config_manager_->Load();
 
             // Set config values we explicitly always want to override
+            /// \todo remove this version code, use fw->ApplicationVersion() instead.
             config_manager_->SetSetting(Framework::ConfigurationGroup(), std::string("version_major"), std::string("0"));
             config_manager_->SetSetting(Framework::ConfigurationGroup(), std::string("version_minor"), std::string("3.4.1"));
-
+            
             CreateLoggingSystem(); // depends on config and platform
 
             // create managers
@@ -145,23 +153,23 @@ namespace Foundation
             Task::Events::RegisterTaskEvents(event_manager_);
             scene->RegisterSceneEvents();
 
-            naaliApplication = new NaaliApplication(this, argc_, argv_);
             initialized_ = true;
-
-            ui = new NaaliUi(this);
-            
-            // Connect signal if main window was created. Not in headless mode.
-            if (ui->MainWindow())
-                connect(ui->MainWindow(), SIGNAL(WindowCloseEvent()), this, SLOT(Exit()));
 
             asset = new AssetAPI(headless_);
             const char cDefaultAssetCachePath[] = "/assetcache";
             asset->OpenAssetCache((GetPlatform()->GetApplicationDataDirectory() + cDefaultAssetCachePath).c_str());
 
+            ui = new UiAPI(this);
+
+            // Connect signal if main window was created. Not in headless mode.
+            if (ui->MainWindow())
+                connect(ui->MainWindow(), SIGNAL(WindowCloseEvent()), this, SLOT(Exit()));
+
             audio = new AudioAPI(asset); // Audio API depends on the Asset API, so must be loaded after Asset API is.
             asset->RegisterAssetTypeFactory(AssetTypeFactoryPtr(new GenericAssetFactory<AudioAsset>("Audio"))); ///< \todo This line needs to be removed.
 
             input = new InputAPI(this);
+            console = new ConsoleAPI(this);
 
             // Initialize SceneAPI.
             scene->Initialise();
@@ -173,11 +181,9 @@ namespace Foundation
             RegisterDynamicObject("asset", asset);
             RegisterDynamicObject("audio", audio);
             RegisterDynamicObject("debug", debug);
-            RegisterDynamicObject("application", naaliApplication);
-
-            /*! \todo JS now registers 'scene' manually to the default scene. Add this maybe later
-                or register additiona 'sceneapi' */
-            //RegisterDynamicObject("sceneapi", scene);
+            RegisterDynamicObject("application", application);
+            RegisterDynamicObject("apiversion", api_versioninfo_);
+            RegisterDynamicObject("applicationversion", application_versioninfo_);
         }
     }
 
@@ -190,7 +196,6 @@ namespace Foundation
         module_manager_.reset();
         config_manager_.reset();
         platform_.reset();
-        application_.reset();
 
         Poco::Logger::shutdown();
 
@@ -201,9 +206,14 @@ namespace Foundation
         if (log_formatter_)
             log_formatter_->release();
 
-        delete frame;
-        delete console;
-        delete ui;
+        // We don't want to delete QObjects that have framework as parent
+        // Qt will perform that child cleanup after this destructor. In certain QWidget/QObject cases
+        // if we delete them here seems to be quite crash prone, core dumps at exit in QApplication::notify.
+        //delete frame;
+        //delete console;
+        //delete ui;
+
+        // Delete the QObjects that don't have a parent.
         delete input;
         delete asset;
         delete audio;
@@ -211,7 +221,7 @@ namespace Foundation
         // This delete must be the last one in Framework since naaliApplication derives QApplication.
         // When we delete QApplication, we must have ensured that all QObjects have been deleted.
         ///\bug Framework is itself a QObject and we should delete naaliApplication only after Framework has been deleted. A refactor is required.
-        delete naaliApplication;
+        delete application;
     }
 
     void Framework::CreateLoggingSystem()
@@ -245,8 +255,14 @@ namespace Foundation
 
         try
         {
-            Poco::Logger::create("",formatchannel,Poco::Message::PRIO_TRACE);
-            Poco::Logger::create("Foundation",Poco::Logger::root().getChannel() ,Poco::Message::PRIO_TRACE);
+#ifdef _DEBUG
+            int loggingLevel = Poco::Message::PRIO_TRACE;
+#else
+            int loggingLevel = Poco::Message::PRIO_INFORMATION;
+#endif            
+
+            Poco::Logger::create("",formatchannel,loggingLevel);
+            Poco::Logger::create("Foundation",Poco::Logger::root().getChannel(), loggingLevel);
         }
         catch (Poco::ExistsException &/*e*/)
         {
@@ -263,13 +279,11 @@ namespace Foundation
             splitterchannel->removeChannel(filechannel);
             RootLogInfo("Poco::OpenFileException. Log file not created.");
         }
-
 #ifndef _DEBUG
         // make it so debug messages are not logged in release mode
         std::string log_level = config_manager_->GetSetting<std::string>(Framework::ConfigurationGroup(), "log_level");
         Poco::Logger::get("Foundation").setLevel(log_level);
 #endif
-
         if (consolechannel)
             log_channels_.push_back(consolechannel);
         log_channels_.push_back(filechannel);
@@ -306,14 +320,13 @@ namespace Foundation
             ("run", po::value<std::string>(), "Run script on startup") // JavaScriptModule
             ("file", po::value<std::string>(), "Load scene on startup. Accepts absolute and relative paths, local:// and http:// are accepted and fetched via the AssetAPI.") // TundraLogicModule & AssetModule
             ("storage", po::value<std::string>(), "Adds the given directory as a local storage directory on startup") // AssetModule
-            // The following options seem to be unused in the system. These should be removed or reimplemented. -jj.
+            ("login", po::value<std::string>(), "Automatically login to server using provided data. Url syntax: {tundra|http|https}://host[:port]/?username=x[&password=y&avatarurl=z&protocol={udp|tcp}]. Minimum information needed to try a connection in the url are host and username")
+            ///\todo The following options seem to be unused in the system. These should be removed or reimplemented. -jj.
             ("user", po::value<std::string>(), "OpenSim login name")
             ("passwd", po::value<std::string>(), "OpenSim login password")
             ("server", po::value<std::string>(), "World server and port")
             ("auth_server", po::value<std::string>(), "RealXtend authentication server address and port")
-            ("auth_login", po::value<std::string>(), "RealXtend authentication server user name")
-            ("login", "Automatically login to server using provided credentials");
-
+            ("auth_login", po::value<std::string>(), "RealXtend authentication server user name");
         try
         {
             po::store(po::command_line_parser(argc_, argv_).options(commandLineDescriptions).allow_unregistered().run(), commandLineVariables);
@@ -328,9 +341,8 @@ namespace Foundation
     void Framework::PostInitialize()
     {
         PROFILE(FW_PostInitialize);
+        event_manager_->RegisterEventCategory("Framework");
 
-        event_category_id_t framework_events = event_manager_->RegisterEventCategory("Framework");
-        UNREFERENCED_PARAM(framework_events);
         srand(time(0));
 
         LoadModules();
@@ -344,16 +356,25 @@ namespace Foundation
 
     void Framework::ProcessOneFrame()
     {
+        static tick_t clock_freq;
+        static tick_t last_clocktime;
+
+        if (!last_clocktime)
+            last_clocktime = GetCurrentClockTime();
+
+        if (!clock_freq)
+            clock_freq = GetCurrentClockFreq();
+
         if (exit_signal_ == true)
             return; // We've accidentally ended up to update a frame, but we're actually quitting.
 
         {
             PROFILE(FW_MainLoop);
 
-            double frametime = timer.elapsed();
-            
-            timer.restart();
-            // do synchronized update for modules
+            tick_t curr_clocktime = GetCurrentClockTime();
+            double frametime = ((double)curr_clocktime - (double)last_clocktime) / (double) clock_freq;
+            last_clocktime = curr_clocktime;
+
             {
                 PROFILE(FW_UpdateModules);
                 module_manager_->UpdateModules(frametime);
@@ -396,6 +417,8 @@ namespace Foundation
                 frame->Update(frametime);
             }
 
+            console->Update(frametime);
+
             // if we have a renderer service, render now
             boost::weak_ptr<Foundation::RenderServiceInterface> renderer = service_manager_->GetService<RenderServiceInterface>();
             if (renderer.expired() == false)
@@ -416,7 +439,7 @@ namespace Foundation
         }
         
         // Run our QApplication subclass NaaliApplication.
-        naaliApplication->Go();
+        application->Go();
 
         // Qt main loop execution has ended, we are existing.
         exit_signal_ = true;
@@ -431,20 +454,25 @@ namespace Foundation
     void Framework::Exit()
     {
         exit_signal_ = true;
-        if (naaliApplication)
-            naaliApplication->AboutToExit();
+        if (application)
+            application->AboutToExit();
     }
     
     void Framework::ForceExit()
     {
         exit_signal_ = true;
-        if (naaliApplication)
-            naaliApplication->quit();
+        if (application)
+            application->quit();
     }
     
     void Framework::CancelExit()
     {
         exit_signal_ = false;
+
+        // Our main loop is stopped when we are exiting,
+        // we need to start it back up again if something canceled the exit.
+        if (application)
+            application->UpdateFrame();
     }
 
     void Framework::LoadModules()
@@ -465,18 +493,20 @@ namespace Foundation
     {
         event_manager_->ClearDelayedEvents();
         module_manager_->UninitializeModules();
+        ///\todo Horrible uninit call here now due to console refactoring
+        console->Uninitialize();
         module_manager_->UnloadModules();
     }
 
-    NaaliApplication *Framework::GetNaaliApplication() const
-    { 
-        return naaliApplication;
+    Application *Framework::GetApplication() const
+    {
+        return application;
     }
 
-    Console::CommandResult Framework::ConsoleLoadModule(const StringVector &params)
+    ConsoleCommandResult Framework::ConsoleLoadModule(const StringVector &params)
     {
         if (params.size() != 2 && params.size() != 1)
-            return Console::ResultInvalidParameters();
+            return ConsoleResultInvalidParameters();
 
         std::string lib = params[0];
         std::string entry = params[0];
@@ -486,52 +516,51 @@ namespace Foundation
         bool result = module_manager_->LoadModuleByName(lib, entry);
 
         if (!result)
-            return Console::ResultFailure("Library or module not found.");
+            return ConsoleResultFailure("Library or module not found.");
 
-        return Console::ResultSuccess("Module " + entry + " loaded.");
+        return ConsoleResultSuccess("Module " + entry + " loaded.");
     }
 
-    Console::CommandResult Framework::ConsoleUnloadModule(const StringVector &params)
+    ConsoleCommandResult Framework::ConsoleUnloadModule(const StringVector &params)
     {
         if (params.size() != 1)
-            return Console::ResultInvalidParameters();
+            return ConsoleResultInvalidParameters();
 
         bool result = false;
         if (module_manager_->HasModule(params[0]))
             result = module_manager_->UnloadModuleByName(params[0]);
 
         if (!result)
-            return Console::ResultFailure("Module not found.");
+            return ConsoleResultFailure("Module not found.");
 
-        return Console::ResultSuccess("Module " + params[0] + " unloaded.");
+        return ConsoleResultSuccess("Module " + params[0] + " unloaded.");
     }
 
-    Console::CommandResult Framework::ConsoleListModules(const StringVector &params)
+    ConsoleCommandResult Framework::ConsoleListModules(const StringVector &params)
     {
-        boost::shared_ptr<Console::ConsoleServiceInterface> console = GetService<Console::ConsoleServiceInterface>(Service::ST_Console).lock();
         if (console)
         {
             console->Print("Loaded modules:");
             const ModuleManager::ModuleVector &modules = module_manager_->GetModuleList();
             for(size_t i = 0 ; i < modules.size() ; ++i)
-                console->Print(modules[i].module_->Name());
+                console->Print(modules[i].module_->Name().c_str());
         }
 
-        return Console::ResultSuccess();
+        return ConsoleResultSuccess();
     }
 
-    Console::CommandResult Framework::ConsoleSendEvent(const StringVector &params)
+    ConsoleCommandResult Framework::ConsoleSendEvent(const StringVector &params)
     {
         if (params.size() != 2)
-            return Console::ResultInvalidParameters();
+            return ConsoleResultInvalidParameters();
         
         event_category_id_t event_category = event_manager_->QueryEventCategory(params[0], false);
         if (event_category == IllegalEventCategory)
-            return Console::ResultFailure("Event category not found.");
+            return ConsoleResultFailure("Event category not found.");
         else
         {
             event_manager_->SendEvent(event_category, ParseString<event_id_t>(params[1]), 0);
-            return Console::ResultSuccess();
+            return ConsoleResultSuccess();
         }
     }
 
@@ -556,7 +585,7 @@ namespace Foundation
     /// @param node The root node where to start the printing.
     /// @param showUnused If true, even blocks that haven't been called will be included. If false, only
     ///        the blocks that were actually recently called are included. 
-    void PrintTimingsToConsole(const Console::ConsolePtr &console, const ProfilerNodeTree *node, bool showUnused)
+    void PrintTimingsToConsole(ConsoleAPI *console, ProfilerNodeTree *node, bool showUnused)
     {
         const ProfilerNode *timings_node = dynamic_cast<const ProfilerNode*>(node);
 
@@ -597,7 +626,7 @@ namespace Foundation
                     timings.append("&nbsp;");
                 timings += str;
 
-                console->Print(timings);
+                console->Print(timings.c_str());
             }
         }
 
@@ -612,10 +641,9 @@ namespace Foundation
             level -= 2;
     }
 
-    Console::CommandResult Framework::ConsoleProfile(const StringVector &params)
+    ConsoleCommandResult Framework::ConsoleProfile(const StringVector &params)
     {
 #ifdef PROFILING
-        boost::shared_ptr<Console::ConsoleServiceInterface> console = GetService<Console::ConsoleServiceInterface>(Service::ST_Console).lock();
         if (console)
         {
             Profiler &profiler = GetProfiler();
@@ -629,36 +657,32 @@ namespace Foundation
 //            profiler.Release();
         }
 #endif
-        return Console::ResultSuccess();
+        return ConsoleResultSuccess();
     }
 
     void Framework::RegisterConsoleCommands()
     {
-        boost::shared_ptr<Console::CommandService> console = GetService<Console::CommandService>(Service::ST_ConsoleCommand).lock();
-        if (console)
-        {
-            console->RegisterCommand(Console::CreateCommand("LoadModule", 
-                "Loads a module from shared library. Usage: LoadModule(lib, entry)", 
-                Console::Bind(this, &Framework::ConsoleLoadModule)));
+        console->RegisterCommand(CreateConsoleCommand("LoadModule",
+            "Loads a module from shared library. Usage: LoadModule(lib, entry)",
+            ConsoleBind(this, &Framework::ConsoleLoadModule)));
 
-            console->RegisterCommand(Console::CreateCommand("UnloadModule", 
-                "Unloads a module. Usage: UnloadModule(name)", 
-                Console::Bind(this, &Framework::ConsoleUnloadModule)));
+        console->RegisterCommand(CreateConsoleCommand("UnloadModule",
+            "Unloads a module. Usage: UnloadModule(name)", 
+            ConsoleBind(this, &Framework::ConsoleUnloadModule)));
 
-            console->RegisterCommand(Console::CreateCommand("ListModules", 
-                "Lists all loaded modules.", 
-                Console::Bind(this, &Framework::ConsoleListModules)));
+        console->RegisterCommand(CreateConsoleCommand("ListModules",
+            "Lists all loaded modules.", 
+            ConsoleBind(this, &Framework::ConsoleListModules)));
 
-            console->RegisterCommand(Console::CreateCommand("SendEvent", 
-                "Sends an internal event. Only for events that contain no data. Usage: SendEvent(event category name, event id)", 
-                Console::Bind(this, &Framework::ConsoleSendEvent)));
+        console->RegisterCommand(CreateConsoleCommand("SendEvent",
+            "Sends an internal event. Only for events that contain no data. Usage: SendEvent(event category name, event id)",
+            ConsoleBind(this, &Framework::ConsoleSendEvent)));
 
 #ifdef PROFILING
-            console->RegisterCommand(Console::CreateCommand("Profile", 
-                "Outputs profiling data. Usage: Profile() for full, or Profile(name) for specific profiling block", 
-                Console::Bind(this, &Framework::ConsoleProfile)));
+        console->RegisterCommand(CreateConsoleCommand("Profile", 
+            "Outputs profiling data. Usage: Profile() for full, or Profile(name) for specific profiling block",
+            ConsoleBind(this, &Framework::ConsoleProfile)));
 #endif
-        }
     }
 
 #ifdef PROFILING
@@ -723,18 +747,13 @@ namespace Foundation
         return input;
     }
 
-    NaaliUi *Framework::Ui() const
+    UiAPI *Framework::Ui() const
     {
         return ui;
     }
 
-    UiServiceInterface *Framework::UiService() 
-    { 
-        return GetService<UiServiceInterface>(); 
-    }
-
     ConsoleAPI *Framework::Console() const
-    { 
+    {
         return console;
     }
 
@@ -763,6 +782,16 @@ namespace Foundation
         return config;
     }
 
+    ApiVersionInfo *Framework::ApiVersion() const
+    {
+        return api_versioninfo_;
+    }
+
+    ApplicationVersionInfo *Framework::ApplicationVersion() const
+    {
+        return application_versioninfo_;   
+    }
+
     QObject *Framework::GetModuleQObj(const QString &name)
     {
         ModuleWeakPtr module = GetModuleManager()->GetModule(name.toStdString());
@@ -781,6 +810,5 @@ namespace Foundation
         setProperty(name.toStdString().c_str(), QVariant::fromValue<QObject*>(object));
 
         return true;
-
     }
 }

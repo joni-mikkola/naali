@@ -16,7 +16,7 @@
 #include "EC_Placeable.h"
 #include "SceneManager.h"
 #include "LoggingFunctions.h"
-#include "Audio.h"
+#include "AudioAPI.h"
 #include "SceneAPI.h"
 #include "FrameAPI.h"
 
@@ -31,7 +31,7 @@ EC_SoundListener::EC_SoundListener(IModule *module):
 
     connect(this, SIGNAL(ParentEntitySet()), SLOT(RetrievePlaceable()));
     connect(GetFramework()->Frame(), SIGNAL(Updated(float)), SLOT(Update()));
-    connect(this, SIGNAL(OnAttributeChanged(IAttribute*, AttributeChange::Type)), SLOT(OnActiveChanged()));
+    connect(this, SIGNAL(AttributeChanged(IAttribute*, AttributeChange::Type)), SLOT(OnActiveChanged()));
     connect(this, SIGNAL(ParentEntitySet()), SLOT(RegisterActions()));
 }
 

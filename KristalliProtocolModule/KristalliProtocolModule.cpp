@@ -9,13 +9,13 @@
 #include "Profiler.h"
 #include "EventManager.h"
 #include "CoreStringUtils.h"
-#include "ConsoleServiceInterface.h"
-#include "ConsoleCommandServiceInterface.h"
+#include "ConsoleCommandUtils.h"
+#include "UiAPI.h"
+#include "UiMainWindow.h"
+#include "ConsoleAPI.h"
 
-#include "NaaliUi.h"
-#include "NaaliMainWindow.h"
-#include "kNet.h"
-#include "kNet/qt/NetworkDialog.h"
+#include <kNet.h>
+#include <kNet/qt/NetworkDialog.h>
 
 #include <algorithm>
 
@@ -131,9 +131,11 @@ void KristalliProtocolModule::Initialize()
 
 void KristalliProtocolModule::PostInitialize()
 {
-    RegisterConsoleCommand(Console::CreateCommand(
+#ifdef KNET_USE_QT
+    framework_->Console()->RegisterCommand(CreateConsoleCommand(
             "kNet", "Shows the kNet statistics window.", 
-            Console::Bind(this, &KristalliProtocolModule::OpenKNetLogWindow)));
+            ConsoleBind(this, &KristalliProtocolModule::OpenKNetLogWindow)));
+#endif
 }
 
 void KristalliProtocolModule::Uninitialize()
@@ -141,14 +143,16 @@ void KristalliProtocolModule::Uninitialize()
     Disconnect();
 }
 
-Console::CommandResult KristalliProtocolModule::OpenKNetLogWindow(const StringVector &)
+#ifdef KNET_USE_QT
+ConsoleCommandResult KristalliProtocolModule::OpenKNetLogWindow(const StringVector &)
 {
     NetworkDialog *networkDialog = new NetworkDialog(0, &network);
     networkDialog->setAttribute(Qt::WA_DeleteOnClose);
     networkDialog->show();
 
-    return Console::ResultSuccess();
+    return ConsoleResultSuccess();
 }
+#endif
 
 void KristalliProtocolModule::Update(f64 frametime)
 {
@@ -160,7 +164,7 @@ void KristalliProtocolModule::Update(f64 frametime)
     // Note: Calling the above serverConnection->Process() may set serverConnection to null if the connection gets disconnected.
     // Therefore, in the code below, we cannot assume serverConnection is non-null, and must check it again.
 
-    // Our client->server connection is never kept partially open.
+    // Our client->server connection is never kept half-open.
     // That is, at the moment the server write-closes the connection, we also write-close the connection.
     // Check here if the server has write-closed, and also write-close our end if so.
     if (serverConnection && !serverConnection->IsReadOpen() && serverConnection->IsWriteOpen())
@@ -168,7 +172,17 @@ void KristalliProtocolModule::Update(f64 frametime)
     
     // Process server incoming connections & messages if server up
     if (server)
+    {
         server->Process();
+
+        // In Tundra, we *never* keep half-open server->client connections alive. 
+        // (the usual case would be to wait for a file transfer to complete, but Tundra messaging mechanism doesn't use that).
+        // So, bidirectionally close all half-open connections.
+        NetworkServer::ConnectionMap connections = server->GetConnections();
+        for(NetworkServer::ConnectionMap::iterator iter = connections.begin(); iter != connections.end(); ++iter)
+            if (!iter->second->IsReadOpen() && iter->second->IsWriteOpen())
+                iter->second->Disconnect(0);
+    }
     
     if ((!serverConnection || serverConnection->GetConnectionState() == ConnectionClosed ||
         serverConnection->GetConnectionState() == ConnectionPending) && serverIp.length() != 0)

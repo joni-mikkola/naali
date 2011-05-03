@@ -8,8 +8,8 @@
 #include "Framework.h"
 #include "EventManager.h"
 #include "RenderServiceInterface.h"
-#include "NaaliUi.h"
-#include "NaaliGraphicsView.h"
+#include "UiAPI.h"
+#include "UiGraphicsView.h"
 #include "LoggingFunctions.h"
 DEFINE_POCO_LOGGING_FUNCTIONS("Input")
 
@@ -560,6 +560,7 @@ bool InputAPI::eventFilter(QObject *obj, QEvent *event)
 
         KeyEvent keyEvent;
         keyEvent.keyCode = StripModifiersFromKey(e->key());
+        keyEvent.sequence = QKeySequence(e->key() | e->modifiers());
         keyEvent.keyPressCount = 1;
         keyEvent.modifiers = e->modifiers();
         keyEvent.text = e->text();

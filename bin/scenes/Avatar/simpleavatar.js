@@ -51,8 +51,9 @@ function ServerInitialize() {
     var rigidbody = me.GetOrCreateComponentRaw("EC_RigidBody");
 
     // Set the avatar appearance. This creates the mesh & animationcontroller, once the avatar asset has loaded
-    // Note: for now, you need the default_avatar.xml in your bin/data/assets folder
-    avatar.appearanceId = "local://default_avatar.xml"
+    var r = avatar.appearanceRef;
+    r.ref = "local://default_avatar.xml";
+    avatar.appearanceRef = r;
 
     // Set physics properties
     var sizeVec = new Vector3df();
@@ -344,7 +345,7 @@ function ClientInitialize() {
         own_avatar = true;
         ClientCreateInputMapper();
         ClientCreateAvatarCamera();
-        crosshair = new Crosshair();
+        crosshair = new Crosshair(/*bool useLabelInsteadOfCursor*/ false);
         var soundlistener = me.GetOrCreateComponentRaw("EC_SoundListener");
         soundlistener.active = true;
 
@@ -354,6 +355,17 @@ function ClientInitialize() {
         me.Action("MouseLookX").Triggered.connect(ClientHandleTripodLookX);
         me.Action("MouseLookY").Triggered.connect(ClientHandleTripodLookY);
         me.Action("CheckState").Triggered.connect(ClientCheckState);
+        
+        // Inspect the login avatar url property
+        var avatarurl = client.GetLoginProperty("avatarurl");
+        if (avatarurl && avatarurl.length > 0)
+        {
+            var avatar = me.GetOrCreateComponentRaw("EC_Avatar");
+            var r = avatar.appearanceRef;
+            r.ref = "local://default_avatar.xml";
+            avatar.appearanceRef = r;
+            print("Avatar from login parameters enabled:", avatarAssetRef);
+        }
     }
     else
     {
@@ -472,8 +484,8 @@ function ClientCreateInputMapper() {
     // Create a nonsynced inputmapper
     var inputmapper = me.GetOrCreateComponentRaw("EC_InputMapper", 2, false);
     inputmapper.contextPriority = 101;
-    inputmapper.takeMouseEventsOverQt = true;
-    inputmapper.takeKeyboardEventsOverQt = true;
+    inputmapper.takeMouseEventsOverQt = false;
+    inputmapper.takeKeyboardEventsOverQt = false;
     inputmapper.modifiersEnabled = false;
     inputmapper.keyrepeatTrigger = false; // Disable repeat keyevent sending over network, not needed and will flood network
     inputmapper.executionType = 2; // Execute actions on server
@@ -668,15 +680,8 @@ function ClientUpdateAvatarCamera() {
         cameratransform.pos.z = avatartransform.pos.z + offsetVec.z;
         // Note: this is not nice how we have to fudge the camera rotation to get it to show the right things
         if(!first_person)
-        {
             cameratransform.rot.x = 90;
-            cameratransform.rot.z = avatartransform.rot.z - 90;
-        }
-        else
-        {
-            avatartransform.rot.z = cameratransform.rot.z + 90;
-            me.placeable.transform = avatartransform;
-        }
+        cameratransform.rot.z = avatartransform.rot.z - 90;
         cameraplaceable.transform = cameratransform;
     }
 }
@@ -774,7 +779,21 @@ function ClientHandleMouseMove(mouseevent)
     }
     
     if (!first_person)
+    {
+        //\ note: Right click look also hides/shows cursor, so this is to ensure that the cursor is visible in non-fps mode
+        //\       This may be kinda bad if the stack contains more cursors
+        if (!crosshair.isUsingLabel)
+            if (input.IsMouseCursorVisible())
+                QApplication.restoreOverrideCursor();
         return;
+    }
+
+    if (input.IsMouseCursorVisible())
+    {
+        input.SetMouseCursorVisible(false);
+        if (!crosshair.isUsingLabel)
+            QApplication.setOverrideCursor(crosshair.cursor);
+    }
 
     var cameraentity = scene.GetEntityByNameRaw("AvatarCamera");
     if (cameraentity == null)
@@ -783,12 +802,12 @@ function ClientHandleMouseMove(mouseevent)
     // Dont move av rotation if we are not the active cam
     if (!cameraentity.ogrecamera.IsActive())
         return;
-               
+
     var cameraplaceable = cameraentity.placeable;
     var cameratransform = cameraplaceable.transform;
 
     if (mouseevent.relativeX != 0)
-        cameratransform.rot.z -= (mouse_rotate_sensitivity/3) * parseInt(mouseevent.relativeX);
+        me.Exec(2, "MouseLookX", String(mouse_rotate_sensitivity*2 * parseInt(mouseevent.relativeX)));
     if (mouseevent.relativeY != 0)
         cameratransform.rot.x -= (mouse_rotate_sensitivity/3) * parseInt(mouseevent.relativeY);
         
@@ -798,19 +817,6 @@ function ClientHandleMouseMove(mouseevent)
     if (cameratransform.rot.x > 180)
         cameratransform.rot.x = 180;
 
-    var view = ui.GraphicsView();
-    var centeredCursorPosLocal = new QPoint(view.size.width()/2, view.size.height()/2);
-    input.lastMouseX = centeredCursorPosLocal.x;
-    input.lastMouseY = centeredCursorPosLocal.y;
-
-    var centeredCursorPosGlobal = new QPoint()
-    centeredCursorPosGlobal = view.mapToGlobal(centeredCursorPosLocal);
-    if (centeredCursorPosGlobal.x() == QCursor.pos().x() && centeredCursorPosGlobal.y() == QCursor.pos().y())
-        return;
-    QCursor.setPos(centeredCursorPosGlobal);
-    var mousePos = view.mapFromGlobal(QCursor.pos());
-    input.lastMouseX = mousePos.x;
-    input.lastMouseY = mousePos.y;
     cameraplaceable.transform = cameratransform;
 }
 

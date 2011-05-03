@@ -5,7 +5,7 @@
  *  @brief  Window with tree view showing every entity in a scene.
  *
  *          This class will only handle adding and removing of entities and components and updating
- *          their names. The SceneTreeWidget implements most of the functionlity.
+ *          their names. The SceneTreeWidget implements most of the functionality.
  */
 
 #ifndef incl_SceneStructureModule_SceneStructureWindow_h
@@ -25,7 +25,7 @@ class SceneTreeWidget;
 
 /// Window with tree view showing every entity in a scene.
 /** This class will only handle adding and removing of entities and components and updating
-    their names. The SceneTreeWidget implements most of the functionlity.
+    their names. The SceneTreeWidget implements most of the functionality.
 */
 class SceneStructureWindow : public QWidget
 {
@@ -102,10 +102,8 @@ private:
     SceneTreeWidget *treeWidget; ///< Scene tree widget.
     bool showComponents; ///< Do we show components also in the tree view.
     bool showAssets; ///< Do we show asset references also in the tree view.
-
-    QLineEdit *searchField;
-    QPushButton *expandAndCollapseButton;
-    bool expandingOrCollapsing;
+    QLineEdit *searchField; ///< Search field line edit.
+    QPushButton *expandAndCollapseButton; ///< Expand/collapse all button.
 
 private slots:
     /// Adds the entity to the tree widget.
@@ -125,7 +123,7 @@ private slots:
     void AddComponent(Scene::Entity *entity, IComponent *comp);
 
     /// Removes entity from the tree widget.
-    /** @param entity Aletred entity.
+    /** @param entity Altered entity.
         @param comp Component which was removed.
     */
     void RemoveComponent(Scene::Entity *entity, IComponent *comp);
@@ -148,7 +146,7 @@ private slots:
     void UpdateAssetReference(IAttribute *attr);
 
     /// Updates entity's name in the tree widget if entity's EC_Name component's "name" attribute has changed.
-    /** EC_Name component's OnAttributeChanged() signal is connected to this slot.
+    /** EC_Name component's AttributeChanged() signal is connected to this slot.
         @param attr EC_Name's attribute which was changed.
     */
     void UpdateEntityName(IAttribute *attr);

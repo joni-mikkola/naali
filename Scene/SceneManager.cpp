@@ -30,6 +30,8 @@ DEFINE_POCO_LOGGING_FUNCTIONS("SceneManager")
 #include <kNet/DataDeserializer.h>
 #include <kNet/DataSerializer.h>
 
+#include <boost/regex.hpp>
+
 #include "MemoryLeakCheck.h"
 
 using namespace kNet;
@@ -339,7 +341,10 @@ namespace Scene
             return;
         if (change == AttributeChange::Default)
             change = AttributeChange::Replicate;
-        emit EntityCreated(entity.get(), change);
+        
+        //@note This is not enough, it might be that entity is deleted after this call so we have dangling pointer in queue. 
+        if ( entity.get() != 0 )
+            emit EntityCreated(entity.get(), change);
     }
 
     void SceneManager::EmitEntityCreatedRaw(QObject *entity, AttributeChange::Type change)
@@ -440,7 +445,7 @@ namespace Scene
                     id_str.setNum((int)entity->GetId());
                     entity_elem.setAttribute("id", id_str);
 
-                    const Scene::Entity::ComponentVector &components = entity->GetComponentVector();
+                    const Scene::Entity::ComponentVector &components = entity->Components();
                     for(uint i = 0; i < components.size(); ++i)
                         if (components[i]->IsSerializable())
                             components[i]->SerializeTo(scene_doc, entity_elem);
@@ -602,7 +607,7 @@ namespace Scene
             Entity* entity = ret[i];
             EmitEntityCreated(entity, change);
             // All entities & components have been loaded. Trigger change for them now.
-            const Scene::Entity::ComponentVector &components = entity->GetComponentVector();
+            const Scene::Entity::ComponentVector &components = entity->Components();
             for(uint j = 0; j < components.size(); ++j)
                 components[j]->ComponentChanged(change);
         }
@@ -713,7 +718,7 @@ namespace Scene
             Entity* entity = ret[i];
             EmitEntityCreated(entity, change);
             // All entities & components have been loaded. Trigger change for them now.
-            foreach(ComponentPtr comp, entity->GetComponentVector())
+            foreach(ComponentPtr comp, entity->Components())
                 comp->ComponentChanged(change);
         }
         
@@ -794,7 +799,7 @@ namespace Scene
         foreach(Entity *entity, ret)
         {
             EmitEntityCreated(entity, change);
-            foreach(ComponentPtr component, entity->GetComponentVector())
+            foreach(ComponentPtr component, entity->Components())
                 component->ComponentChanged(change);
         }
 
@@ -906,6 +911,10 @@ namespace Scene
                                 ad.destinationName = AssetAPI::ExtractFilenameFromAssetRef(ad.source);
 
                                 sceneDesc.assets[qMakePair(ad.source, ad.subname)] = ad;
+
+                                // If this is a script, look for dependecies
+                                if (ad.source.toLower().endsWith(".js"))
+                                    SearchScriptAssetDependencies(ad.source, sceneDesc);                          
                             }
                         }
                     }
@@ -923,6 +932,64 @@ namespace Scene
         }
 
         return sceneDesc;
+    }
+
+    void SceneManager::SearchScriptAssetDependencies(const QString &filePath, SceneDesc &sceneDesc) const
+    {
+        if (!filePath.toLower().endsWith(".js"))
+            return;
+
+        if (QFile::exists(filePath))
+        {
+            QFile script(filePath);
+            if (script.open(QIODevice::ReadOnly))
+            {
+                QString scriptData = script.readAll();
+                std::string content = scriptData.toStdString();
+                QStringList foundRefs;
+                boost::sregex_iterator searchEnd;
+
+                boost::regex expression("!ref:\\s*(.*?)\\s*(\\n|$)");
+                for(boost::sregex_iterator iter(content.begin(), content.end(), expression); iter != searchEnd; ++iter)
+                {
+                    QString ref = QString::fromStdString((*iter)[1].str());
+                    if (!foundRefs.contains(ref, Qt::CaseInsensitive))
+                        foundRefs << ref;
+                }
+
+                expression = boost::regex("engine.IncludeFile\\(\\s*\"\\s*(.*?)\\s*\"\\s*\\)");
+                for(boost::sregex_iterator iter(content.begin(), content.end(), expression); iter != searchEnd; ++iter)
+                {
+                    QString ref = QString::fromStdString((*iter)[1].str());
+                    if (!foundRefs.contains(ref, Qt::CaseInsensitive))
+                        foundRefs << ref;
+                }
+
+                foreach(QString scriptDependency, foundRefs)
+                {
+                    AssetDesc ad;
+                    ad.typeName = "Script dependency";
+                    ad.dataInMemory = false;
+
+                    QString basePath(boost::filesystem::path(sceneDesc.filename.toStdString()).branch_path().string().c_str());
+                    framework_->Asset()->QueryFileLocation(scriptDependency, basePath, ad.source);
+                    ad.destinationName = AssetAPI::ExtractFilenameFromAssetRef(ad.source);
+                    
+                    // We have to check if the asset is already added. As we do this recursively there is a danger of a infinite loop.
+                    // This check wont let that happen. Situation when infinite loop would happen: A.js depends on B.js and B.js depends on A.js
+                    // Other than .js depedency assets cannot cause this.
+                    SceneDesc::AssetMapKey key = qMakePair(ad.source, ad.subname);
+                    if (!sceneDesc.assets.contains(key))
+                    {
+                        sceneDesc.assets[key] = ad;
+
+                        // Go deeper if dep file is .js
+                        if (ad.source.toLower().endsWith(".js"))
+                            SearchScriptAssetDependencies(ad.source, sceneDesc);
+                    }
+                }
+            }
+        }
     }
 
     SceneDesc SceneManager::GetSceneDescFromBinary(const QString &filename) const
@@ -1071,7 +1138,7 @@ namespace Scene
             id_str.setNum((int)entity->GetId());
             entity_elem.setAttribute("id", id_str);
             
-            const Scene::Entity::ComponentVector &components = entity->GetComponentVector();
+            const Scene::Entity::ComponentVector &components = entity->Components();
             for(uint i = 0; i < components.size(); ++i)
                 if (components[i]->IsSerializable())
                     components[i]->SerializeTo(scene_doc, entity_elem);

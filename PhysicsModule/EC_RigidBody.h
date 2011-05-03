@@ -119,7 +119,7 @@ class PHYSICS_MODULE_API EC_RigidBody : public IComponent, public btMotionState
     friend class Physics::PhysicsWorld;
     
     Q_OBJECT
-    Q_ENUMS(EventType)
+    Q_ENUMS(ShapeType)
     
     DECLARE_EC(EC_RigidBody);
 public:
@@ -202,7 +202,7 @@ public:
     virtual void setWorldTransform(const btTransform &worldTrans);
 
 signals:
-    //! A physics collision has happened between this rigidbody and another entity
+    //! A physics collision has happened between this rigid body and another entity
     /*! If there are several contact points, the signal will be sent multiple times for each contact.
         \param otherEntity The second entity
         \param position World position of collision
@@ -302,7 +302,7 @@ private slots:
     void UpdateSignals();
     
     //! Called when some of the attributes has been changed.
-    void AttributeUpdated(IAttribute *attribute);
+    void OnAttributeUpdated(IAttribute *attribute);
     
     //! Called when attributes of the placeable have changed
     void PlaceableUpdated(IAttribute *attribute);

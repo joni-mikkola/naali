@@ -145,7 +145,7 @@ Scene::EntityPtr SceneImporter::ImportMesh(const std::string& filename, std::str
         LogError("No EC_Name was created!");
 
     // All components have been loaded/modified. Trigger change for them now.
-    foreach(ComponentPtr c, newentity->GetComponentVector())
+    foreach(ComponentPtr c, newentity->Components())
         c->ComponentChanged(change);
 
     scene_->EmitEntityCreated(newentity, change);
@@ -354,7 +354,7 @@ SceneDesc SceneImporter::GetSceneDescForMesh(const QString &filename) const
     QString meshEntityName = meshleafname;
     meshEntityName.remove(idx, meshleafname.length() - idx);
 
-    EntityDesc entityDesc = { "", meshEntityName };
+    EntityDesc entityDesc("", meshEntityName);
     ComponentDesc meshDesc = { EC_Mesh::TypeNameStatic() };
     ComponentDesc placeableDesc = { EC_Placeable::TypeNameStatic() };
     ComponentDesc nameDesc = { EC_Name::TypeNameStatic() };
@@ -440,7 +440,7 @@ SceneDesc SceneImporter::GetSceneDescForMesh(const QUrl &meshUrl) const
     meshEntityName = meshEntityName.split("/").last();
     meshEntityName = meshEntityName.split(".mesh").first();
 
-    EntityDesc entityDesc = { "", meshEntityName };
+    EntityDesc entityDesc("", meshEntityName);
     ComponentDesc meshDesc = { EC_Mesh::TypeNameStatic() };
     ComponentDesc placeableDesc = { EC_Placeable::TypeNameStatic() };
     ComponentDesc nameDesc = { EC_Name::TypeNameStatic() };
