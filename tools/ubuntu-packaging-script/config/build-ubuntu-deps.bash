@@ -20,8 +20,6 @@ build=$deps/build
 tarballs=$deps/tarballs
 tags=$deps/tags
 
-
-
 # -j<n> param for make, for how many processes to run concurrently
 
 nprocs=`grep -c "^processor" /proc/cpuinfo` 
@@ -36,7 +34,6 @@ export CPLUS_INCLUDE_PATH=$prefix/include
 export CC="ccache gcc"
 export CXX="ccache g++"
 export CCACHE_DIR=$deps/ccache
-
 
 if lsb_release -c | egrep -q "lucid|maverick"; then
         which aptitude > /dev/null 2>&1 || apt-get install aptitude

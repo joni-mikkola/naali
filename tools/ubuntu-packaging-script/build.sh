@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #DEFAULT VARIABLES
-INSTALL_DIR=$PWD/ubuntu1004
+INSTALL_DIR=$PWD/lucid3
 REX_DIR=realXtend
 FINAL_INSTALL_DIR=/opt/realxtend
 ARCH=amd64
@@ -13,7 +13,7 @@ function errorCheck {
     if [ $? != 0 ];
     then
         echo "error" $1
-	sudo umount $INSTALL_DIR/proc
+	rm $INSTALL_DIR/proc
         exit 1
     fi
 }
@@ -115,102 +115,86 @@ fi
 set -e
 set -x
 
-export LANG=C
-
-sudo rm -fr $INSTALL_DIR
-sudo mkdir -p $INSTALL_DIR/$REX_DIR log
+rm -fr $INSTALL_DIR
 
 #CREATE FOLDER FOR DEBOOTSTRAP AND DOWNLOAD IT
-sudo apt-get -y install debootstrap git-core
+#sudo apt-get -y install debootstrap git-core
 
 if [ ! -f $ARCH-$LINUX_RELEASE.tar ];
 then
-	sudo debootstrap --arch $ARCH --make-tarball=$ARCH-$LINUX_RELEASE.tar  $LINUX_RELEASE $INSTALL_DIR
+	fakeroot -s fakechroot.save fakechroot debootstrap --variant=fakechroot --arch $ARCH --make-tarball=$ARCH-$LINUX_RELEASE.tar $LINUX_RELEASE $INSTALL_DIR
 fi
+	fakeroot -i fakechroot.save fakechroot debootstrap --variant=fakechroot --arch $ARCH --unpack-tarball=$(pwd)/$ARCH-$LINUX_RELEASE.tar $LINUX_RELEASE $INSTALL_DIR
+
+mkdir -p $INSTALL_DIR/$REX_DIR log
+rm -fr $INSTALL_DIR/proc
+ln -s /proc $INSTALL_DIR/
 
 #CREATE LOCAL COPY OF NAALI.GIT
-if [ ! -d ./naali ];
+if [ ! -d $INSTALL_DIR/$REX_DIR/naali ];
 then
-	sudo git clone git://github.com/realXtend/naali.git naali
+	git clone ../../. $INSTALL_DIR/$REX_DIR/naali
 fi
 
-sudo git clone ../../. $INSTALL_DIR/$REX_DIR/naali
-
-sudo chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
+chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
-sudo git remote add upstream git://github.com/realXtend/naali.git
-sudo git fetch upstream
+git remote add upstream git://github.com/realXtend/naali.git
+git fetch upstream
+git checkout $BRANCH
 
-if [ $BRANCH == "tundra" ];
-then
-	#sudo git remote add upstream git://github.com/realXtend/naali.git
-	sudo git checkout $BRANCH
-	#sudo git fetch upstream
-	sudo git merge $BRANCH remotes/upstream/$BRANCH
-else
-	sudo git checkout develop
-fi
 
 if [ $TAG != "none" ];
 then
-	sudo git show-ref $TAG
+	git show-ref $TAG
 	if [ $? -ne 0 ];
 	then
 		echo "Invalid tag" $TAG
 		exit 1
 	fi
 
-	sudo git checkout $TAG
+	git checkout $TAG
 	VER=$TAG	
 else
 	if [ $BRANCH == "tundra" ];
 	then
-	VER=`sudo grep "Tundra" Ui/UiMainWindow.cpp | cut -d 'v' -f2 -|cut -d '"' -f 1`
+	VER=`grep "Tundra" $INSTALL_DIR/$REX_DIR/naali/Viewer/main.cpp | cut -d 'v' -f2 -|cut -d '-' -f 1`
 	else
 	VER=`sudo grep "Naali_v" Application/main.cpp | cut -d 'v' -f2 | tail -1 |cut -d '"' -f1`
 	fi
 fi
 
-sudo git pull
-
 cd ../../../
-
-sudo debootstrap --arch $ARCH --unpack-tarball=$(pwd)/$ARCH-$LINUX_RELEASE.tar $LINUX_RELEASE $INSTALL_DIR
-#sudo debootstrap --arch $ARCH $LINUX_RELEASE $INSTALL_DIR
-errorCheck "debootstrap error"
 
 #MOVE SOME CACHED DEBS FROM BACKUP TO REDUCE BUILD TIME
 if [ -d ./apt_cache_$ARCH/ ];
 then
 	if [ -f $INSTALL_DIR/var/cache/apt/archives/*.deb ];
 	then	
-		sudo rm $INSTALL_DIR/var/cache/apt/archives/*.deb
+		rm $INSTALL_DIR/var/cache/apt/archives/*.deb
 	fi
-	sudo chmod -R 755 ./apt_cache_$ARCH
-	sudo cp -r  ./apt_cache_$ARCH/*.deb $INSTALL_DIR/var/cache/apt/archives/
+	chmod -R 755 ./apt_cache_$ARCH
+	mkdir -p $INSTALL_DIR/var/cache/apt/archives/
+	cp -r  ./apt_cache_$ARCH/*.deb $INSTALL_DIR/var/cache/apt/archives/
 fi
 
-#PROC FOLDER IS NEEDED FOR THE BUILD PROCESS AND SAME THING FOR resolv.conf + possibly for hosts
-sudo mount --bind /proc $INSTALL_DIR/proc
-sudo chmod -R a+rX $INSTALL_DIR/$REX_DIR/
-sudo chmod 755 ./config/chroot-script.sh
-sudo rm -fr $INSTALL_DIR/$REX_DIR/config
-sudo cp -r ./config $INSTALL_DIR/$REX_DIR/config
-
+chmod -R a+rX $INSTALL_DIR/$REX_DIR/
+chmod 755 ./config/chroot-script.bash
+rm -fr $INSTALL_DIR/$REX_DIR/config
+cp ./config/build-ubuntu-deps.bash $INSTALL_DIR/$REX_DIR/naali/tools/	
+cp -r ./config $INSTALL_DIR/$REX_DIR/config
 
 #CHROOT INTO OUR UBUNTU AND RUN SCRIPT (PARAMETERS BRANCH + VERSION) + DO LOG FILE
 LOGFILE=` date|awk 'OFS="."{print $2,$3,$6,$4}'`
-sudo chroot $INSTALL_DIR $REX_DIR/config/chroot-script.sh $BRANCH $ARCH $REX_DIR $TAG $BUILDNUMBER $VER 2>&1 | sudo tee ./log/$LOGFILE-$BRANCH-$ARCH.log
+fakeroot -i fakechroot.save fakechroot chroot $INSTALL_DIR $REX_DIR/config/chroot-script.bash $BRANCH $ARCH $REX_DIR $TAG $BUILDNUMBER $VER 2>&1 | tee ./log/$LOGFILE-$BRANCH-$ARCH.log 
 
 if [ ! -d ./apt_cache_$ARCH/ ];
 then
-	sudo mkdir -p ./apt_cache_$ARCH/
-	sudo cp -r $INSTALL_DIR/var/cache/apt/archives/*.deb ./apt_cache_$ARCH/
+	mkdir -p ./apt_cache_$ARCH/
+	cp -r $INSTALL_DIR/var/cache/apt/archives/*.deb ./apt_cache_$ARCH/
 fi
 
 #MOVE DEB FILES BACK TO OUR CURRENT DIRECTORY
-sudo chmod -R a+rX $INSTALL_DIR/$REX_DIR/
-sudo mv -f $INSTALL_DIR/$REX_DIR/*.deb ./
+chmod -R a+rX $INSTALL_DIR/$REX_DIR/
+mv -f $INSTALL_DIR/$REX_DIR/*.deb ./
 
-
-sudo umount $INSTALL_DIR/proc
+rm $INSTALL_DIR/proc
