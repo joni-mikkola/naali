@@ -138,8 +138,8 @@ fi
 
 chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
-git remote add upstream git://github.com/realXtend/naali.git
-git fetch upstream
+#git remote add upstream git://github.com/realXtend/naali.git
+#git fetch upstream
 git checkout $BRANCH
 
 
@@ -157,9 +157,10 @@ then
 else
 	if [ $BRANCH == "tundra" ];
 	then
-	VER=`grep "Tundra" $INSTALL_DIR/$REX_DIR/naali/Viewer/main.cpp | cut -d 'v' -f2 -|cut -d '-' -f 1`
+		VER=`grep "Tundra" $INSTALL_DIR/$REX_DIR/naali/Viewer/main.cpp | cut -d 'v' -f2 -|cut -d '-' -f 1`
 	else
-	VER=`sudo grep "Naali_v" Application/main.cpp | cut -d 'v' -f2 | tail -1 |cut -d '"' -f1`
+		VER=`grep "Naali_v" Application/main.cpp | cut -d 'v' -f2 | tail -1 |cut -d '"' -f1`
+		BRANCH=naali
 	fi
 fi
 
