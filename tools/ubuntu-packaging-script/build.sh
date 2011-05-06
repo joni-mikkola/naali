@@ -118,7 +118,7 @@ set -x
 rm -fr $INSTALL_DIR
 
 #CREATE FOLDER FOR DEBOOTSTRAP AND DOWNLOAD IT
-#sudo apt-get -y install debootstrap git-core
+sudo apt-get -y install debootstrap git-core fakeroot fakechroot
 
 if [ ! -f $ARCH-$LINUX_RELEASE.tar ];
 then
@@ -138,8 +138,7 @@ fi
 
 chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
-#git remote add upstream git://github.com/realXtend/naali.git
-#git fetch upstream
+git remote add -f upstream git://github.com/realXtend/naali.git
 git checkout $BRANCH
 
 
