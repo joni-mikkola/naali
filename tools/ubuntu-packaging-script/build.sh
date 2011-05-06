@@ -118,7 +118,7 @@ set -x
 rm -fr $INSTALL_DIR
 
 #CREATE FOLDER FOR DEBOOTSTRAP AND DOWNLOAD IT
-sudo apt-get -y install debootstrap git-core fakeroot fakechroot
+apt-get -y install debootstrap git-core fakeroot fakechroot
 
 if [ ! -f $ARCH-$LINUX_RELEASE.tar ];
 then
