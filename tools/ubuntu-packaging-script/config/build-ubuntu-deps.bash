@@ -118,6 +118,7 @@ else
     sed "s/depflags.has_key/False and depflags.has_key/g" < SConstruct > SConstruct.edit
     mv SConstruct.edit SConstruct
     scons extra_ccflags="-fPIC -DPIC"
+    sed -i "s/if not conf.CheckCXXHeader('Ogre.h'):/if conf.CheckCXXHeader('asd.h'):/" SConstruct
     mkdir -p $prefix/etc/OGRE
     cp plugins.cfg $prefix/etc/OGRE/
     cp lib$what.a $prefix/lib/
