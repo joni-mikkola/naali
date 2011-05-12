@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#export LANG=C
+export LANG=C
 
 FINAL_INSTALL_DIR=/opt/realxtend
 PACKAGE_NAME=realXtend
@@ -14,6 +14,7 @@ REX_DIR=$3
 TAG=$4
 BUILDNUMBER=$5
 VER=$6
+LINUX_RELEASE=$7
 #IN CASE ERROR HAPPENS, $?-VARIABLE IS != 0
 function errorCheck {
     if [ $? -ne 0 ];
@@ -24,37 +25,37 @@ function errorCheck {
 }
 
 #UPDATE SOURCES.LIST FOR REPOSITORY
+
 cat > /etc/apt/sources.list << EOF
-deb http://se.archive.ubuntu.com/ubuntu/ lucid main restricted
-deb-src http://se.archive.ubuntu.com/ubuntu/ lucid main restricted
+deb http://se.archive.ubuntu.com/ubuntu/ release main restricted
+deb-src http://se.archive.ubuntu.com/ubuntu/ release main restricted
 
-deb http://se.archive.ubuntu.com/ubuntu/ lucid-updates main restricted
-deb-src http://se.archive.ubuntu.com/ubuntu/ lucid-updates main restricted
+deb http://se.archive.ubuntu.com/ubuntu/ release-updates main restricted
+deb-src http://se.archive.ubuntu.com/ubuntu/ release-updates main restricted
 
-deb http://se.archive.ubuntu.com/ubuntu/ lucid universe
-deb-src http://se.archive.ubuntu.com/ubuntu/ lucid universe
-deb http://se.archive.ubuntu.com/ubuntu/ lucid-updates universe
-deb-src http://se.archive.ubuntu.com/ubuntu/ lucid-updates universe
+deb http://se.archive.ubuntu.com/ubuntu/ release universe
+deb-src http://se.archive.ubuntu.com/ubuntu/ release universe
+deb http://se.archive.ubuntu.com/ubuntu/ release-updates universe
+deb-src http://se.archive.ubuntu.com/ubuntu/ release-updates universe
 
-deb http://se.archive.ubuntu.com/ubuntu/ lucid multiverse
-deb-src http://se.archive.ubuntu.com/ubuntu/ lucid multiverse
-deb http://se.archive.ubuntu.com/ubuntu/ lucid-updates multiverse
-deb-src http://se.archive.ubuntu.com/ubuntu/ lucid-updates multiverse
+deb http://se.archive.ubuntu.com/ubuntu/ release multiverse
+deb-src http://se.archive.ubuntu.com/ubuntu/ release multiverse
+deb http://se.archive.ubuntu.com/ubuntu/ release-updates multiverse
+deb-src http://se.archive.ubuntu.com/ubuntu/ release-updates multiverse
 
-deb http://security.ubuntu.com/ubuntu lucid-security main restricted
-deb-src http://security.ubuntu.com/ubuntu lucid-security main restricted
-deb http://security.ubuntu.com/ubuntu lucid-security universe
-deb-src http://security.ubuntu.com/ubuntu lucid-security universe
-deb http://security.ubuntu.com/ubuntu lucid-security multiverse
-deb-src http://security.ubuntu.com/ubuntu lucid-security multiverse
+deb http://security.ubuntu.com/ubuntu release-security main restricted
+deb-src http://security.ubuntu.com/ubuntu release-security main restricted
+deb http://security.ubuntu.com/ubuntu release-security universe
+deb-src http://security.ubuntu.com/ubuntu release-security universe
+deb http://security.ubuntu.com/ubuntu release-security multiverse
+deb-src http://security.ubuntu.com/ubuntu release-security multiverse
 EOF
+
+sed -i 's/release/'$LINUX_RELEASE'/' /etc/apt/sources.list
 
 #UPDATE REPOSITORY
 apt-get update
-apt-get -y --force-yes install gnupg lsb apt-utils
-apt-get -y --force-yes install git-core wget unzip cmake aptitude gcc g++
-#dpkg --force-all -i /var/cache/apt/archives/*.deb
-
+apt-get -y --force-yes install git-core wget unzip cmake aptitude
 cd /$REX_DIR/naali
 
 rm -fr /$REX_DIR/$PACKAGE_NAME-$BRANCH-$VER-$ARCH
@@ -63,6 +64,13 @@ rm -fr /$REX_DIR/$PACKAGE_NAME-$BRANCH-scenes-noarch
 #UPDATE CORRECT VERSION NUMBERS + ARCHITECTURE
 sed '/Architecture/c \Architecture: '$ARCH'' /$REX_DIR/config/control_$BRANCH > tmpfile ; mv tmpfile /$REX_DIR/config/control_$BRANCH
 sed '/Version/c \Version: '$VER'' /$REX_DIR/config/control_$BRANCH > tmpfile ; mv tmpfile /$REX_DIR/config/control_$BRANCH
+
+if [ $LINUX_RELEASE == "natty" ];
+then
+	sed '/Depends/c \Depends: libboost-date-time1.42.0 (>= 1.42.0), libboost-filesystem1.42.0 (>= 1.42.0), libboost-thread1.42.0 (>= 1.42.0), libboost-regex1.42.0 (>= 1.42.0), libboost-program-options1.42.0 (>= 1.42.0), libpocofoundation9 (>= 1.3.4), libpoconet9 (>= 1.3.4), libpocoutil9 (>= 1.3.4), libqt4-script (>= 4.6.1), libqt4-webkit (>= 4.6.1), libqt4-scripttools (>= 4.6.1), libopenal1 (>= 1.1.0), libogremain-1.6.4 (>= 1.6.1), libopenjpeg2 (>= 1.3), libxmlrpc-epi0, libboost-test1.42.0 (>=1.42.0), libcurl3-gnutls, libqtscript4-uitools, libqt4-webkit, libqt4-svg, libqt4-sql, python2.6, libqt4-xmlpatterns, libpython2.6' /$REX_DIR/config/control_$BRANCH > tmpfile ; mv tmpfile /$REX_DIR/config/control_$BRANCH
+else
+	sed '/Depends/c \Depends: libboost-date-time1.40.0 (>= 1.40.0), libboost-filesystem1.40.0 (>= 1.40.0), libboost-thread1.40.0 (>= 1.40.0), libboost-regex1.40.0 (>= 1.40.0), libboost-program-options1.40.0 (>= 1.40.0), libpocofoundation9 (>= 1.3.4), libpoconet9 (>= 1.3.4), libpocoutil9 (>= 1.3.4), libqt4-script (>= 4.6.1), libqt4-webkit (>= 4.6.1), libqt4-scripttools (>= 4.6.1), libopenal1 (>= 1.1.0), libogremain-1.6.4 (>= 1.6.1), libopenjpeg2 (>= 1.3), libxmlrpc-epi0, libboost-test1.40.0 (>=1.40.0), libcurl3-gnutls, libqtscript4-uitools' /$REX_DIR/config/control_$BRANCH > tmpfile ; mv tmpfile /$REX_DIR/config/control_$BRANCH
+fi
 
 #CREATE STRUCTURE NEEDED FOR DEB PACKAGE && USE READY-MADE CONTROL FILE && DESKTOP ICON
 mkdir -p /$REX_DIR/$PACKAGE_NAME-$BRANCH-$VER-$ARCH/DEBIAN
@@ -75,7 +83,6 @@ then
 	mkdir -p /$REX_DIR/$PACKAGE_NAME-$BRANCH-scenes-noarch/DEBIAN
 	mkdir -p /$REX_DIR/$PACKAGE_NAME-$BRANCH-scenes-noarch/$FINAL_INSTALL_DIR-$BRANCH/
 	cp /$REX_DIR/config/control_scenes /$REX_DIR/$PACKAGE_NAME-$BRANCH-scenes-noarch/DEBIAN/control
-
 	cp /$REX_DIR/config/run-linux_${BRANCH}_server.sh /$REX_DIR/$PACKAGE_NAME-$BRANCH-$VER-$ARCH/$FINAL_INSTALL_DIR-$BRANCH/run-server.sh
 fi
 

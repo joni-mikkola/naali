@@ -3,7 +3,8 @@ TIMESTAMP=`date '+%d%m%H%M'`
 SYSROOT=""
 SCRIPTS=meegoScripts
 BNUMBER=$1
-
+NAALIDIR=/root/naali
+WORKDIR=$(pwd)
 mkdir -p log
 
 #UPDATE SOURCES.LIST FOR REPOSITORY
@@ -23,6 +24,14 @@ sudo mad-admin create -f meego-handset-ia32-1.1.2
 sudo mad-admin set meego-handset-ia32-1.1.2
 SYSROOT=`mad-admin query sysroot-dir`
 
+sudo rm -fr $SYSROOT/$NAALIDIR
+
+sudo git clone ../../. $SYSROOT/$NAALIDIR
+cd $SYSROOT/$NAALIDIR
+sudo git remote add -f upstream git://github.com/realXtend/naali.git
+sudo git checkout tundra
+
+cd $WORKDIR
 sudo cp -r $SCRIPTS $SYSROOT/
 sudo mic-chroot $SYSROOT -e "su -c ./meegoScripts/chrootbuild" 2>&1 | sudo tee ./log/$TIMESTAMP.log
 

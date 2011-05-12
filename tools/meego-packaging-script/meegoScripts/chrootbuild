@@ -228,14 +228,7 @@ cp -fr /packages/usr/ogre/lib/* /root/libs
 
 # Building tundra
 echo BUILDSCRIPT: Building tundra
-
-rm -fr $naalidir
-
-git clone git://github.com/realXtend/naali.git $naalidir
 cd $naalidir
-git remote add -f upstream git://github.com/realXtend/naali.git
-git checkout tundra
-
 NAALI_DEP_PATH=/usr/ cmake "-DCMAKE_CXX_FLAGS:STRING=-DKNET_USE_BOOST  -lboost_filesystem -I/usr/include/bullet" .
 make -j $pcount
 

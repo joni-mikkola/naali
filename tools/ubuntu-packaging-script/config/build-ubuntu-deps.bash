@@ -35,16 +35,16 @@ export CC="ccache gcc"
 export CXX="ccache g++"
 export CCACHE_DIR=$deps/ccache
 
-if lsb_release -c | egrep -q "lucid|maverick"; then
+if lsb_release -c | egrep -q "lucid|maverick|natty"; then
         which aptitude > /dev/null 2>&1 || apt-get install aptitude
-	 aptitude -o Aptitude::Cmdline::ignore-trust-violations=true -y --assume-yes install scons python-dev libogg-dev libvorbis-dev \
+	 aptitude -o Aptitude::Cmdline::ignore-trust-violations=true -y install scons python-dev libogg-dev libvorbis-dev \
 	 libopenjpeg-dev libcurl4-gnutls-dev libexpat1-dev libphonon-dev \
 	 build-essential g++ libogre-dev libboost-all-dev libpoco-dev \
 	 python-gtk2-dev libdbus-glib-1-dev ccache libqt4-dev python-dev \
          libtelepathy-farsight-dev libnice-dev libgstfarsight0.10-dev \
          libtelepathy-qt4-dev python-gst0.10-dev freeglut3-dev \
 	 libxmlrpc-epi-dev bison flex libxml2-dev cmake libalut-dev \
-	 liboil0.3-dev mercurial unzip xsltproc libqtscript4-qtbindings
+	 liboil0.3-dev mercurial unzip xsltproc libqtscript4-qtbindings python2.6-dev wget rpm mercurial
 fi
 
 function build-regular {
@@ -188,5 +188,5 @@ cat > ccache-g++-wrapper <<EOF
 exec ccache g++ -O -g \$@
 EOF
 chmod +x ccache-g++-wrapper
-NAALI_DEP_PATH=$prefix cmake -DCMAKE_CXX_COMPILER="$viewer/ccache-g++-wrapper" .
+NAALI_DEP_PATH=$prefix cmake -DCMAKE_CXX_FLAGS:STRING=-lboost_filesystem -DCMAKE_CXX_COMPILER="$viewer/ccache-g++-wrapper" .
 make -j $nprocs VERBOSE=1
