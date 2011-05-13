@@ -197,7 +197,7 @@ sudo chroot $INSTALL_DIR $REX_DIR/config/chroot-script.bash $BRANCH $ARCH $REX_D
 
 if [ ! -d ./apt_cache_$ARCH/ ];
 then
-	sudo mkdir -p ./apt_cache_'$LINUX_RELEASE'_'$ARCH'/
+	sudo mkdir -p ./apt_cache_$ARCH/
 	sudo cp -r $INSTALL_DIR/var/cache/apt/archives/*.deb ./apt_cache_$ARCH/
 fi
 
