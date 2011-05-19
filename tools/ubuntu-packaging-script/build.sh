@@ -144,10 +144,14 @@ fi
 
 sudo chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
-sudo git checkout $BRANCH
-sudo git remote add -f upstream git://github.com/realXtend/naali.git
 
-
+if [ $BRANCH == "develop" ];
+then
+	git remote add -f upstream git://github.com/realXtend/naali.git
+	git checkout $BRANCH
+else
+	git remote add -f upstream git://github.com/realXtend/naali.git
+fi
 
 if [ $TAG != "none" ];
 then
@@ -206,4 +210,3 @@ sudo chmod -R a+rX $INSTALL_DIR/$REX_DIR/
 sudo mv -f $INSTALL_DIR/$REX_DIR/*.deb ./
 
 sudo umount $INSTALL_DIR/proc
-
