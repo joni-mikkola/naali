@@ -145,13 +145,8 @@ fi
 sudo chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
 
-if [ $BRANCH == "develop" ];
-then
-	git remote add -f upstream git://github.com/realXtend/naali.git
-	git checkout $BRANCH
-else
-	git remote add -f upstream git://github.com/realXtend/naali.git
-fi
+git remote add -f upstream git://github.com/realXtend/naali.git
+git checkout $BRANCH
 
 if [ $TAG != "none" ];
 then
