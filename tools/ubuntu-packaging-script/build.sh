@@ -145,8 +145,9 @@ fi
 sudo chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
 
-git remote add -f upstream git://github.com/realXtend/naali.git
-git checkout $BRANCH
+sudo git remote add -f upstream git://github.com/realXtend/naali.git
+sudo git checkout $BRANCH
+
 
 if [ $TAG != "none" ];
 then
