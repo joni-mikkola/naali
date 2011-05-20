@@ -148,6 +148,10 @@ cd $INSTALL_DIR/$REX_DIR/naali
 sudo git remote add -f upstream git://github.com/realXtend/naali.git
 sudo git checkout $BRANCH
 
+if [ $BRANCH == "master" ];
+then
+	BRANCH=tundra
+fi
 
 if [ $TAG != "none" ];
 then
