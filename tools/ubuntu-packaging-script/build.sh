@@ -191,7 +191,6 @@ fi
 sudo chmod -R a+rX $INSTALL_DIR/$REX_DIR/
 sudo chmod 755 ./config/chroot-script.bash
 sudo rm -fr $INSTALL_DIR/$REX_DIR/config
-sudo cp ./config/build-ubuntu-deps.bash $INSTALL_DIR/$REX_DIR/naali/tools/
 sudo chmod 755 $INSTALL_DIR/$REX_DIR/naali/tools/build-ubuntu-deps.bash
 sudo cp -r ./config $INSTALL_DIR/$REX_DIR/config
 
