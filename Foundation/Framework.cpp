@@ -24,6 +24,7 @@
 #include "DebugAPI.h"
 #include "SceneAPI.h"
 #include "ConfigAPI.h"
+#include "DevicesAPI.h"
 #include "UiAPI.h"
 #include "UiMainWindow.h"
 #include "VersionInfo.h"
@@ -79,9 +80,9 @@ namespace Foundation
     {
         ParseProgramOptions();
 
-        /// \note Major becomes 1 when we stop breaking the API, which is still planned after 1.0.6 which is kind of an alpha of 1.0 still.
-        api_versioninfo_ = new ApiVersionInfo(this, 0, 6, 0, 0);
-        application_versioninfo_ = new ApplicationVersionInfo(this, 1, 0, 6, 0, "realXtend", "Tundra");
+        /// \note ApiVersionInfo major becomes 1.0 when we stop breaking the API.
+        api_versioninfo_ = new ApiVersionInfo(this, 0, 7, 0, 0);
+        application_versioninfo_ = new ApplicationVersionInfo(this, 1, 0, 7, 0, "realXtend", "Tundra");
 
         if (commandLineVariables.count("help")) 
         {
@@ -111,6 +112,7 @@ namespace Foundation
             // This will make us load modules etc. correctly even if the working dir is something else
             // than our actual install dir.
             application = new Application(this, argc_, argv_);
+            application->InitializeSplash();
 
             // Force install directory as the current working directory.
             /** \Todo: we may not want to do this in all cases, but there is a huge load of places
@@ -134,11 +136,6 @@ namespace Foundation
             }
 
             config_manager_->Load();
-
-            // Set config values we explicitly always want to override
-            /// \todo remove this version code, use fw->ApplicationVersion() instead.
-            config_manager_->SetSetting(Framework::ConfigurationGroup(), std::string("version_major"), std::string("0"));
-            config_manager_->SetSetting(Framework::ConfigurationGroup(), std::string("version_minor"), std::string("3.4.1"));
             
             CreateLoggingSystem(); // depends on config and platform
 
@@ -159,17 +156,14 @@ namespace Foundation
             const char cDefaultAssetCachePath[] = "/assetcache";
             asset->OpenAssetCache((GetPlatform()->GetApplicationDataDirectory() + cDefaultAssetCachePath).c_str());
 
-            ui = new UiAPI(this);
-
-            // Connect signal if main window was created. Not in headless mode.
-            if (ui->MainWindow())
-                connect(ui->MainWindow(), SIGNAL(WindowCloseEvent()), this, SLOT(Exit()));
+            ui = new UiAPI(this);               
 
             audio = new AudioAPI(asset); // Audio API depends on the Asset API, so must be loaded after Asset API is.
             asset->RegisterAssetTypeFactory(AssetTypeFactoryPtr(new GenericAssetFactory<AudioAsset>("Audio"))); ///< \todo This line needs to be removed.
 
             input = new InputAPI(this);
             console = new ConsoleAPI(this);
+            devices = new DevicesAPI(this);
 
             // Initialize SceneAPI.
             scene->Initialise();
@@ -181,6 +175,7 @@ namespace Foundation
             RegisterDynamicObject("asset", asset);
             RegisterDynamicObject("audio", audio);
             RegisterDynamicObject("debug", debug);
+            RegisterDynamicObject("devices", devices);
             RegisterDynamicObject("application", application);
             RegisterDynamicObject("apiversion", api_versioninfo_);
             RegisterDynamicObject("applicationversion", application_versioninfo_);
@@ -317,9 +312,9 @@ namespace Foundation
             ("startserver", po::value<int>(0), "Start server automatically in specified port") // TundraLogicModule
             ("protocol", po::value<std::string>(), "Spesifies which transport layer to use. Used when starting a server and when client connects. Options: '--protocol tcp' and '--protocol udp'. Defaults to tcp if no protocol is spesified.") // KristalliProtocolModule
             ("fpslimit", po::value<float>(0), "Specifies the fps cap to use in rendering. Default: 60. Pass in 0 to disable") // OgreRenderingModule
-            ("run", po::value<std::string>(), "Run script on startup") // JavaScriptModule
+            ("run", po::value<std::vector<std::string> >(), "Run script on startup") // JavaScriptModule
             ("file", po::value<std::string>(), "Load scene on startup. Accepts absolute and relative paths, local:// and http:// are accepted and fetched via the AssetAPI.") // TundraLogicModule & AssetModule
-            ("storage", po::value<std::string>(), "Adds the given directory as a local storage directory on startup") // AssetModule
+              ("storage", po::value<std::vector<std::string> >(), "Adds the given directory as a local storage directory on startup") // AssetModule
             ("login", po::value<std::string>(), "Automatically login to server using provided data. Url syntax: {tundra|http|https}://host[:port]/?username=x[&password=y&avatarurl=z&protocol={udp|tcp}]. Minimum information needed to try a connection in the url are host and username")
             ///\todo The following options seem to be unused in the system. These should be removed or reimplemented. -jj.
             ("user", po::value<std::string>(), "OpenSim login name")
@@ -327,14 +322,9 @@ namespace Foundation
             ("server", po::value<std::string>(), "World server and port")
             ("auth_server", po::value<std::string>(), "RealXtend authentication server address and port")
             ("auth_login", po::value<std::string>(), "RealXtend authentication server user name");
-        try
-        {
-            po::store(po::command_line_parser(argc_, argv_).options(commandLineDescriptions).allow_unregistered().run(), commandLineVariables);
-        }
-        catch (std::exception &e)
-        {
-            RootLogWarning(e.what());
-        }
+
+        po::store(po::command_line_parser(argc_, argv_).options(commandLineDescriptions).allow_unregistered().run(), commandLineVariables);
+
         po::notify(commandLineVariables);
     }
 
@@ -354,10 +344,10 @@ namespace Foundation
         RegisterConsoleCommands();
     }
 
-    void Framework::ProcessOneFrame()
+    double Framework::CalculateFrametime(tick_t currentClockTime)
     {
-        static tick_t clock_freq;
         static tick_t last_clocktime;
+        static tick_t clock_freq;
 
         if (!last_clocktime)
             last_clocktime = GetCurrentClockTime();
@@ -365,70 +355,84 @@ namespace Foundation
         if (!clock_freq)
             clock_freq = GetCurrentClockFreq();
 
-        if (exit_signal_ == true)
-            return; // We've accidentally ended up to update a frame, but we're actually quitting.
+        //tick_t curr_clocktime = GetCurrentClockTime();
+        double frametime = ((double)currentClockTime - (double)last_clocktime) / (double) clock_freq;
+        last_clocktime = currentClockTime;
 
+        return frametime;
+    }
+
+    void Framework::UpdateModules(double frametime)
+    {
+        if (exit_signal_)
+            return;
+
+        // Update modules
         {
-            PROFILE(FW_MainLoop);
-
-            tick_t curr_clocktime = GetCurrentClockTime();
-            double frametime = ((double)curr_clocktime - (double)last_clocktime) / (double) clock_freq;
-            last_clocktime = curr_clocktime;
-
-            {
-                PROFILE(FW_UpdateModules);
-                module_manager_->UpdateModules(frametime);
-            }
-
-            // check framework's thread task manager for completed requests, send as events
-            {
-                PROFILE(FW_ProcessThreadTaskResults)
-                thread_task_manager_->SendResultEvents();
-            }
-
-            // process delayed events
-            {
-                PROFILE(FW_ProcessDelayedEvents);
-                event_manager_->ProcessDelayedEvents(frametime);
-            }
-
-            // Process the asset API updates.
-            {
-                PROFILE(Asset_Update);
-                asset->Update(frametime);
-            }
-
-            // Process all keyboard input.
-            {
-                PROFILE(Input_Update);
-                input->Update(frametime);
-            }
-
-            // Process all audio playback.
-            {
-                PROFILE(Audio_Update);
-                audio->Update(frametime);
-            }
-
-            // Process frame update now. Scripts handling the frame tick will be run at this point, and will have up-to-date 
-            // information after for example network updates, that have been performed by the modules.
-            {
-                PROFILE(Frame_Update);
-                frame->Update(frametime);
-            }
-
-            console->Update(frametime);
-
-            // if we have a renderer service, render now
-            boost::weak_ptr<Foundation::RenderServiceInterface> renderer = service_manager_->GetService<RenderServiceInterface>();
-            if (renderer.expired() == false)
-            {
-                PROFILE(FW_Render);
-                renderer.lock()->Render();
-            }
+            PROFILE(Update_Modules);
+            module_manager_->UpdateModules(frametime);
         }
 
-        RESETPROFILER
+        // Check framework's thread task manager for completed requests, send as events
+        {
+            PROFILE(Update_ThreadTasks)
+            thread_task_manager_->SendResultEvents();
+        }
+
+        // Process delayed events
+        {
+            PROFILE(Update_DelayedEvents);
+            event_manager_->ProcessDelayedEvents(frametime);
+        }
+    }
+
+    void Framework::UpdateAPIs(double frametime)
+    {
+        if (exit_signal_)
+            return;
+
+        // InputAPI
+        {
+            PROFILE(Update_InputAPI);
+            input->Update(frametime);
+        }
+        // AudioAPI
+        {
+            PROFILE(Update_AudioAPI);
+            audio->Update(frametime);
+        }
+        // AssetAPI
+        {
+            PROFILE(Update_AssetAPI);
+            asset->Update(frametime);
+        }
+        // ConsoleAPI
+        {
+            PROFILE(Update_ConsoleAPI)
+                console->Update(frametime);
+        }
+        // FrameAPI
+        // Process frame update now. Scripts handling the frame tick will be run at this point, and will have up-to-date 
+        // information after for example network updates, that have been performed by the modules.
+        {
+            PROFILE(Update_FrameAPI);
+            frame->Update(frametime);
+        }
+    }
+
+    void Framework::UpdateRendering(double frametime)
+    {
+        if (exit_signal_)
+            return;
+        if (IsHeadless())
+            return;
+
+        boost::weak_ptr<Foundation::RenderServiceInterface> renderer = service_manager_->GetService<RenderServiceInterface>();
+        if (renderer.expired() == false)
+        {
+            PROFILE(Update_Rendering);
+            renderer.lock()->Render();
+        }
     }
 
     void Framework::Go()
@@ -780,6 +784,11 @@ namespace Foundation
     ConfigAPI *Framework::Config() const
     {
         return config;
+    }
+
+    DevicesAPI *Framework::Devices() const
+    {
+        return devices;
     }
 
     ApiVersionInfo *Framework::ApiVersion() const

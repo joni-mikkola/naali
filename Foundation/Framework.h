@@ -22,6 +22,7 @@ class ConsoleAPI;
 class DebugAPI;
 class SceneAPI;
 class ConfigAPI;
+class DevicesAPI;
 class Application;
 class ApiVersionInfo;
 class ApplicationVersionInfo;
@@ -87,10 +88,24 @@ namespace Foundation
         void PostInitialize();
 
         /// Entry point for the framework.
+        /// \note This function call will block as long as Application exits.
         void Go();
 
-        /// Runs through a single frame of logic update and rendering.
-        void ProcessOneFrame();
+        /// Calculate the main loop frametime for updates
+        /// \return double Frametime
+        double CalculateFrametime(tick_t currentClockTime);
+
+        /// Update modules
+        /// \param double Frametime
+        void UpdateModules(double frametime);
+
+        /// Update APIs
+        /// \param double Frametime
+        void UpdateAPIs(double frametime);
+
+        /// Update rendering
+        /// \param double Frametime
+        void UpdateRendering(double frametime);
 
         /// Returns component manager.
         ComponentManagerPtr GetComponentManager() const;
@@ -234,6 +249,9 @@ namespace Foundation
         /// Returns core API Config object.
         ConfigAPI *Config() const;
 
+        /// Return core API Devices object.
+        DevicesAPI *Devices() const;
+
         /// Returns Tundra API version info object.
         ApiVersionInfo *ApiVersion() const;
 
@@ -269,7 +287,6 @@ namespace Foundation
 
         /// Creates logging system.
         void CreateLoggingSystem();
-
         ModuleManagerPtr module_manager_; ///< Module manager.
         ComponentManagerPtr component_manager_; ///< Component manager.
         ServiceManagerPtr service_manager_; ///< Service manager.
@@ -299,6 +316,7 @@ namespace Foundation
         DebugAPI *debug; ///< The Debug API.
         SceneAPI *scene; ///< The Scene API.
         ConfigAPI *config; ///< The Config API.
+        DevicesAPI *devices; ///< The Devices API.
 
         /// The Tundra API version info of this build. May differ from the end user application version of the default distribution, i.e. app may change when api stays same.
         ApiVersionInfo *api_versioninfo_;

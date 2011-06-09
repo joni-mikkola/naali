@@ -3,7 +3,7 @@ engine.ImportExtension("qt.core");
 engine.ImportExtension("qt.gui");
 
 var camera_distance = 7.0;
-var last_clicked = null;
+var last_clicked_pos = new Vector3df();
 var zooming = false;
 var global_transform;
 
@@ -20,16 +20,20 @@ function init_ui()
     if (!return_button)
     {
         return_button = new QPushButton("Return To Previous Camera");
-        return_button.resize(210, 50);
-        return_button.font = new QFont("Arial", 10);
+        return_button.focusPolicy = Qt.NoFocus;
+        return_button.resize(190, 35);
+        
         return_button_proxy = new UiProxyWidget(return_button); 
         ui.AddProxyWidgetToScene(return_button_proxy);
         return_button_proxy.windowFlags = 0;
+        return_button_proxy.effect = 0;        
 
-        var style = "QWidget { background-color: transparent; } QPushButton { background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(228, 228, 228, 255), stop:1 rgba(82, 82, 82, 255)); border: 1px solid grey; border-radius: 10px; color: white; } QPushButton::hover { background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0.699, y2:1, stop:0 rgba(228, 228, 228, 255), stop:1 rgba(82, 82, 82, 255)); } QPushButton::pressed { color: rgb(248, 248, 248); background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(228, 228, 228, 255), stop:1 rgba(82, 82, 82, 255)); }";
+        var style = "QPushButton          { background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(235, 235, 235, 150), stop:1 rgba(82, 82, 82, 150)); \
+                                            font: 11pt \"Calibri\"; border: 1px solid grey; border-radius: 5px; color: rgb(250, 250, 250); } \
+                     QPushButton::hover   { background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:1, stop:0 rgba(135, 135, 135, 150), stop:1 rgba(82, 82, 82, 150)); } \
+                     QPushButton::pressed { color: rgb(220, 220, 220); background-color: qlineargradient(spread:pad, x1:0, y1:0, x2:0, y2:1, stop:0 rgba(228, 228, 228, 150), stop:1 rgba(82, 82, 82, 150)); }";
         return_button.styleSheet = style;
         return_button.setAttribute(Qt.WA_OpaquePaintEvent);
-
 
         scene_rect_changed(ui.GraphicsScene().sceneRect);
         ui.GraphicsScene().sceneRectChanged.connect(scene_rect_changed);
@@ -100,11 +104,14 @@ function mouseLeftPress(event)
         mouse_left_pressed = true;
         if (!objectcamera_mode)
         {
-            init_ui();
             var raycastResult = renderer.Raycast(event.x, event.y);
-            if (raycastResult.entity !== null)
+            if (raycastResult.entity != null)
             {
-                var entityclicked = scene.GetEntityRaw(raycastResult.entity.id);
+                if (raycastResult.entity.HasComponent("EC_Selected"))
+                    return;
+
+                init_ui();
+                last_clicked_pos = raycastResult.pos;
                 objectcameraentity = scene.GetEntityByNameRaw("ObjectCamera");
 
                 if (objectcameraentity == null)
@@ -129,7 +136,6 @@ function mouseLeftPress(event)
                 }
 
                 objectcamera_mode = true;
-                last_clicked = entityclicked;
             }
         }
     }
@@ -150,7 +156,7 @@ function mouseScroll(event)
         pos.y = transform.pos.y;
         pos.z = transform.pos.z;
 
-        var pivot = last_clicked.placeable.transform.pos;
+        var pivot = last_clicked_pos;
 
         var dir = new Vector3df();
         dir.x = pivot.x - pos.x;
@@ -241,8 +247,8 @@ function mouseMove(event)
         var width = renderer.GetWindowWidth();
         var height = renderer.GetWindowHeight();
 
-        var x = 2*Math.PI*event.relativeX/width;
-        var y = 2*Math.PI*event.relativeY/height;
+        var x = 4*Math.PI*event.relativeX/width;
+        var y = 4*Math.PI*event.relativeY/height;
 
         var transform = objectcameraentity.placeable.transform;       
         var pos = new Vector3df();
@@ -250,7 +256,7 @@ function mouseMove(event)
         pos.y = transform.pos.y;
         pos.z = transform.pos.z;
 
-        var pivot = last_clicked.placeable.transform.pos;
+        var pivot = last_clicked_pos;
 
         var dir = new Vector3df();
         dir.x = pos.x - pivot.x;

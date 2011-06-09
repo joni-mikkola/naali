@@ -1,10 +1,20 @@
 /*
   SlideCircle
+   - circling around slide thingies for your sliding pleasure
+
+   TODO
+   * Add a help text
+   * Path finding so that we won't go through things
+   * Store slide show information (like the slide you are looking at)
+     in a dynamic component
 
 */
 
 engine.ImportExtension("qt.core");
 engine.ImportExtension("qt.gui");
+
+
+// Some functions needed for QVector3D calculations.
 
 function distance(v1, v2) {
     var a = Math.pow((v1.x() - v2.x()), 2);
@@ -93,29 +103,29 @@ function getNormal(entity, distance) {
     return pos;
 }
 
+/* Goes in front of given entity*/
 function viewScreen(screen) {
-
-    var pos = getNormal(screen, 10);
-
-    var p = camera.placeable.position;
-
-    p.setX(pos.x());
-    p.setY(pos.y());
-    p.setZ(pos.z());
-
-    camera.placeable.position = p;
-
+    var pos = getNormal(screen, infront);
+    camera.placeable.position = pos;
     camera.placeable.LookAt(screen.placeable.position);
 }
 
+/* calculates to point to move and look */
 function getPoints(from, to) {
+    curveposition = 0;
+    prev_r = 360;
     targets = [];
-    targets.push(getNormal(from, 15));
-    targets.push(getNormal(to, 15));
-    targets.push(getNormal(to, 10));
+    targets.push(getNormal(from, close));
+    targets.push(getNormal(from, close));
+    targets.push(getNormal(from, far));
+    targets.push(getNormal(to, far));
+    targets.push(getNormal(to, close));
+    targets.push(getNormal(to, infront));
+
     lookAtTargets = [];
-    lookAtTargets.push(getNormal(from, 10));
-    lookAtTargets.push(getNormal(to, 10));
+    lookAtTargets.push(from.placeable.position);
+    lookAtTargets.push(to.placeable.position);
+    
 }
 
 function HandleGotoNext() {
@@ -136,68 +146,161 @@ function HandleGotoPrev() {
     currentIndex = newIndex;
 }
 
-function animationUpdate(dt) {
+function getBezier(t) {
+    if (t <= 0) {
+	return targets[0];
+    }
+    if (t >= 1) {
+	targets.splice(0,4);
+	return;
+    }
     
+    var p0 = targets[0];
+    var p1 = targets[1];
+    var p2 = targets[2];
+    var p3 = targets[3];
+
+    return vadd(vadd(vadd(smul(p0, Math.pow(1 - t, 3)), smul(p1, 3 * Math.pow(1 - t, 2) * t)), smul(p2, 3 * (1 - t) * Math.pow(t , 2))), smul(p3, Math.pow(t, 3)));
+}
+
+
+function animationUpdate(dt) {
     if (targets.length == 0) {
 	return;
     }
-    var target = targets[0];
-    var pos = camera.placeable.position;
-    //print(pos);
-    //print(target);
-    var d = distance(pos, target);
- 
-    //print(d);
-
-    if (d <= 0.1) {
-	targets.splice(0, 1);
-	if (lookAtTargets.length == 2) {
-	    lookAtTargets.splice(0, 1);
+    //backing from front and closing to front also, yes
+    if (targets.length == 6 || targets.length == 1) {
+	if (targets.length == 6) {
+	    var target = targets[0];
+	    curveposition = -dt / 3;
+	} else {
+	    var target = targets[0];
 	}
+	var pos = camera.placeable.position
+
+	var dist = distance(pos, target);
+	camera.placeable.LookAt(lookAtTargets[0]);
+	// If we're there change targets for moving and looking.
+	if (dist <= 0.1) {
+	    targets.splice(0, 1);
+	    lookAtTargets.splice(0, 1);
+	    return;
+	}
+	
+	var direction = vsubb(target, pos);
+	direction = normalize(direction);
+	
+	var newPos = vadd(pos, smul(direction, dt * 5));
+	camera.placeable.position = newPos;
+	return;
+    }
+	     
+    curveposition += dt / 3;
+    
+    camera.placeable.position = getBezier(curveposition);
+    
+     // Get current rotation
+    var oldtransform = camera.placeable.transform;
+    var currentRotation = oldtransform.rot;
+    
+    // get target rotation
+
+    camera.placeable.LookAt(lookAtTargets[0]);
+    var newtransform = camera.placeable.transform;
+    var targetRotation = newtransform.rot;
+
+    // put back to current position
+    camera.placeable.transform = oldtransform;
+
+    var a = Math.pow((currentRotation.x - targetRotation.x), 2);
+    var b = Math.pow((currentRotation.y - targetRotation.y), 2);
+    var c = Math.pow((currentRotation.z - targetRotation.z), 2);
+    var r = Math.sqrt(a + b + c);
+
+    // If we're close enough we won't turn
+    if ((r <= tolerance) || (r >= 360 - tolerance)) {
+	camera.placeable.LookAt(lookAtTargets[0]);
 	return;
     }
 
-    var direction = vsubb(target, pos);
-    direction = normalize(direction);
+    // Don't turn back
+    if (r > prev_r + tolerance) {
+	
+	camera.placeable.LookAt(lookAtTargets[0]);
+	prev_r = r;
+	return;
+    }
+    prev_r = r;
+	
+    var drotx = targetRotation.x - currentRotation.x;
+    var droty = targetRotation.y - currentRotation.y;
+    var drotz = targetRotation.z - currentRotation.z;
+    
+    // Count magnitude
+    var magnitude = Math.sqrt(Math.pow(drotx, 2) + Math.pow(droty, 2) + Math.pow(drotz, 2));
 
-    var newPos = vadd(pos, smul(direction, dt * 5));
+    var ratio = Math.max(Math.min(1 / curveposition * 3, max_ratio), 0);
 
-    pos.setX(newPos.x());
-    pos.setY(newPos.y());
-    pos.setZ(newPos.z());
+    newtransform.rot.x = (currentRotation.x + drotx / magnitude * ratio) % 360;
+    newtransform.rot.y = (currentRotation.y + droty / magnitude * ratio) % 360;
+    newtransform.rot.z = (currentRotation.z + drotz / magnitude * ratio) % 360;
+    
+    camera.placeable.transform = newtransform;
 
-    camera.placeable.position = pos;
-    camera.placeable.LookAt(lookAtTargets[0]);
 }
 
 function reset() {
     viewScreen(entities[currentIndex]);
     targets = [];
+    lookAtTargets = [];
 }
 
-function putCube(place) {
-    cube.placeable.position = place;
+function updateSettings() {
+    var dyn = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
+    infront = dyn.GetAttribute('infront');
+    close = dyn.GetAttribute('close');
+    far = dyn.GetAttribute('far');
 }
 
-
+// We look for anything that has a EC_WebView and circulate between them
 var entities = scene.GetEntitiesWithComponentRaw("EC_WebView");
+
 var currentIndex = 0;
 var endIndex = entities.length;
 
 var inputmapper = me.GetOrCreateComponentRaw("EC_InputMapper", 2, false);
 var camera = scene.GetEntityByNameRaw("FreeLookCamera");
+//Handy for debug
 //var camera = scene.GetEntityByName("Monkey");
 
 inputmapper.RegisterMapping('n', "GotoNext", 1);
 inputmapper.RegisterMapping('p', "GotoPrev", 1);
 inputmapper.RegisterMapping('r', "ResetShow", 1);
 
+// variables for viewpoint infront is the distance where you want to
+// end up (and leave) close is the distance to which you back up still
+// looking at the screen two points are counted for Bezier
+// cureves. These distances are read from the dynamic component
+
+var dyn = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
+dyn.AttributeChanged.connect(updateSettings);
+
+var infront = dyn.GetAttribute('infront');
+var close = dyn.GetAttribute('close');
+var far = dyn.GetAttribute('far');
+
+var tolerance = 3;
+var max_ratio = 1.5;
+var speed = 100
+
+var prev_r = 360;
+var curveposition;
+
 me.Action("GotoNext").Triggered.connect(HandleGotoNext);
 me.Action("GotoPrev").Triggered.connect(HandleGotoPrev);
 me.Action("ResetShow").Triggered.connect(reset);
 
 var targets = [];
-var lookAtTargets = [];
 print(targets);
 
 print('..');
