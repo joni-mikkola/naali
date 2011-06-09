@@ -51,7 +51,7 @@ SET(USE_UIMODULE 0)
 
 # Enables Open Asset Import Library, which can be used to import various
 # mesh formats.
-SET(OPENASSETIMPORT 0)
+SET(OPENASSETIMPORT 1)
 if (MSVC)
     SET(OPENASSETIMPORT 1)
 endif()

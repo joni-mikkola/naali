@@ -1,106 +1,91 @@
-// For conditions of distribution and use, see copyright notice in license.txt
+#ifndef __OpenAssetImport_h__
+#define __OpenAssetImport_h__
 
-#ifndef incl_AssImp_OpenAssetImport_h
-#define incl_AssImp_OpenAssetImport_h
+#include <string>
+#include <OgreMesh.h>
 
-#include <assimp.hpp>
-#include <LogStream.h>
-#include <aiScene.h>
-#include "Transform.h"
+#include <assimp/assimp.hpp>
+#include <assimp/aiScene.h>
+#include <assimp/aiPostProcess.h>
+#include <map>
+//#include "GOOFSharedFrameworkData.h"
 
-struct SceneDesc;
-
-namespace AssImp
+//TODO: only need a bool ?
+struct boneNode
 {
-    //! Contains mesh data information about a file that can be imported with OpenAssetImport.
-    /*! GetMeshData() uses this to fill out information which can be used to generate entities
-        and components.
-    */
-    struct MeshData
-    {
-        QString file_;          //!< file path, same for each individual mesh in the file.
-        QString name_;          //!< name of an individual mesh inside the file. May be empty if file contains only one mesh.
-        Transform transform_;   //!< transforms in global space for an individual mesh.
-    };
+        aiNode* node;
+        aiNode* parent;
+    bool isNeeded;
+};
 
-    //! Open Asset Import, a wrapper for Open Asset Import library that is used for loading model formats other than Ogre .mesh.
-    /*! Imports an Ogre mesh from various different model formats. The Ogre mesh is created to Ogre::MeshManager. This class
-        doesn't create any entities or components, the caller is responsible for this.
-    */
-    class OpenAssetImport
-    {
-    public:
-        OpenAssetImport();
-        ~OpenAssetImport();
-
-        //! Helper function for stripping mesh name from asset id
-        /*! If asset is contained in a file that contains other assets as well,
-            this function can be used to separate the mesh name so you can
-            get a file name and a mesh name
-            \param id asset id
-            \param outfile asset filename
-            \param outMeshname mesh name
-        */
-        static void StripMeshnameFromAssetId(const QString& id, QString &outfile, QString &outMeshname);
-        
-        //! Returns true if filename has an extension that implies supported file format
-        /*!
-            \param filename full path or only filename to test
-        */
-        bool IsSupportedExtension(const QString& filename);
-
-        //! Imports mesh data from a file.
-        /*! Import mesh names and transformations contained in the model file. This
-            information can be used to create entities, components ands asset refs.
-            Use Import() to create the actual Ogre mesh data.
-
-            \note Does not handle scene hierarchy, all transformations are converted
-                  to world space.
-
-            \param file path to file where to import meshes from
-            \param outMeshData Out string vector of mesh names
-        */
-        void GetMeshData(const QString& file, std::vector<MeshData> &outMeshData) const;
-
-        //! Generates Ogre meshes from memory buffer.
-        /*! The meshes are generated directly to Ogre::MeshManager and names of the meshes are
-            returned. Use GetMeshData() to get hierarchy and transformation data from a model file.
-
-            \param data memory buffer where to import meshes from
-            \param length memory buffer length
-            \param name file format hint for the importer, looks for extension within the name
-            \param hint file format hint for the importer, in practise file extension with the dot included
-            \param node name of the node to import
-            \param outMeshNames Out string vector of generated Ogre mesh names
-        */
-        void Import(const void *data, size_t length, const QString &name, const char* hint, const QString &nodeName, std::vector<std::string> &outMeshNames);
-
-        //! Inspects file and returns a scene description structure of the contents of the file.
-        /*! \param filename File name.
-        */
-        SceneDesc GetSceneDescription(const QString &filename) const;
-
-    private:
-        class AssImpLogStream : public Assimp::LogStream
+class OpenAssetImport //: public GOOF::SharedFrameworkData
+{
+public:
+        enum LoaderParams
         {
-        public:
-            AssImpLogStream() {}
-            virtual ~AssImpLogStream() {}
+                LP_GENERATE_SINGLE_MESH = 1<<0,
 
-            void write(const char* message);
+                // See the two possible methods for material gneration
+                LP_GENERATE_MATERIALS_AS_CODE = 1<<1,
+
+                // 3ds max exports the animation over a longer time frame than the animation actually plays for
+                // this is a fix for that
+                LP_CUT_ANIMATION_WHERE_NO_FURTHER_CHANGE = 1<<2,
+
+                // when 3ds max exports as DAE it gets some of the transforms wrong, get around this by using
+                // this option and a prior run with of the model exported as ASE
+                LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS = 1<<3
         };
 
-        void GetNodeData(const aiScene *scene, const aiNode *node, const QString& file,
-            const aiMatrix4x4 &parentTransform, std::vector<MeshData> &outMeshNames) const;
-        
-        void ImportNode(const struct aiScene *scene, const struct aiNode *node, const QString& file, const QString &nodeName, 
-            std::vector<std::string> &outMeshNames);
+    OpenAssetImport();
+    virtual ~OpenAssetImport();
 
-        boost::shared_ptr<Assimp::Importer> importer_;
-        AssImpLogStream *logstream_;
+        // customAnimationName is only applied if the skeleton only has one animation
+    
+    bool convert(const unsigned char * fileData, size_t numBytes, int loaderParams);
+    Ogre::MeshPtr mMesh;
+    std::string txmlText;
+    std::vector<std::string> matList;
+    const Ogre::String& getBasename(){ return mBasename; }
 
-        const unsigned int loglevels_;     //! Log levels to capture during import
-        const unsigned int default_flags_; //! Default import postprocess flags
-    };
-}
-#endif
+private:
+    bool createSubMesh(const Ogre::String& name, int index, const aiNode* pNode, const aiMesh *mesh, const aiMaterial* mat, Ogre::MeshPtr pMesh, Ogre::AxisAlignedBox& mAAB, const Ogre::String& mDir);
+        Ogre::MaterialPtr createMaterial(int index, const aiMaterial* mat, const Ogre::String& mDir);
+        Ogre::MaterialPtr createMaterialByScript(int index, const aiMaterial* mat);
+        void grabNodeNamesFromNode(const aiScene* mScene,  const aiNode* pNode);
+        void grabBoneNamesFromNode(const aiScene* mScene,  const aiNode* pNode);
+        void computeNodesDerivedTransform(const aiScene* mScene,  const aiNode *pNode, const aiMatrix4x4 accTransform);
+    void createBonesFromNode(const aiScene* mScene,  const aiNode* pNode);
+    void createBoneHiearchy(const aiScene* mScene,  const aiNode *pNode);
+    void loadDataFromNode(const aiScene* mScene,  const aiNode *pNode, const Ogre::String& mDir);
+    void markAllChildNodesAsNeeded(const aiNode *pNode);
+    void flagNodeAsNeeded(const char* name);
+    bool isNodeNeeded(const char* name);
+    void parseAnimation (const aiScene* mScene, int index, aiAnimation* anim);
+        typedef std::map<Ogre::String, boneNode> boneMapType;
+        boneMapType boneMap;
+    //aiNode* mSkeletonRootNode;
+        int mLoaderParams;
+        Ogre::String mBasename;
+        Ogre::String mPath;
+        Ogre::String mMaterialCode;
+        Ogre::String mCustomAnimationName;
+
+        typedef std::map<Ogre::String, const aiNode*> BoneNodeMap;
+        BoneNodeMap mBoneNodesByName;
+
+        typedef std::map<Ogre::String, const aiBone*> BoneMap;
+        BoneMap mBonesByName;
+
+        typedef std::map<Ogre::String, aiMatrix4x4> NodeTransformMap;
+        NodeTransformMap mNodeDerivedTransformByName;
+
+        typedef std::vector<Ogre::MeshPtr> MeshVector;
+        MeshVector mMeshes;
+
+        Ogre::SkeletonPtr mSkeleton;
+
+        static int msBoneCount;
+};
+
+#endif // __OpenAssetImport_h__

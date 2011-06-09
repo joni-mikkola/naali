@@ -5,6 +5,7 @@
 #include "OgreConversionUtils.h"
 #include "OgreRenderingModule.h"
 #include "AssetAPI.h"
+#include "OpenAssetImport.h"
 
 #include <QFile>
 #include <Ogre.h>
@@ -27,25 +28,41 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     /// Force an unload of this data first.
     Unload();
 
-    if (ogreMesh.isNull())
-    {   
-        ogreMesh = Ogre::MeshManager::getSingleton().createManual(
-            OgreRenderer::SanitateAssetIdForOgre(this->Name().toStdString()), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+    //HERE DO THE CONVERSION
+    bool colladaFile;
+    OpenAssetImport meshLoader;
+    int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
+
+    // if returns false then assume data points to ogre mesh
+    colladaFile = meshLoader.convert(data_, numBytes, param);
+
+    //meshLoader.mMesh;
+    if (colladaFile)
+    {
+        ogreMesh = meshLoader.mMesh;
+        // do something
+    }
+    else
+    {
         if (ogreMesh.isNull())
         {
-            LogError("Failed to create mesh " + Name().toStdString());
-            return false; 
+            ogreMesh = Ogre::MeshManager::getSingleton().createManual(
+                OgreRenderer::SanitateAssetIdForOgre(this->Name().toStdString()), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+            if (ogreMesh.isNull())
+            {
+                LogError("Failed to create mesh " + Name().toStdString());
+                return false;
+            }
+            ogreMesh->setAutoBuildEdgeLists(false);
         }
-        ogreMesh->setAutoBuildEdgeLists(false);
-    }
 
-    std::vector<u8> tempData(data_, data_ + numBytes);
-#include "DisableMemoryLeakCheck.h"
-    Ogre::DataStreamPtr stream(new Ogre::MemoryDataStream((void*)&tempData[0], numBytes, false));
-#include "EnableMemoryLeakCheck.h"
-    Ogre::MeshSerializer serializer;
-    serializer.importMesh(stream, ogreMesh.getPointer()); // Note: importMesh *adds* submeshes to an existing mesh. It doesn't replace old ones.
-    
+        std::vector<u8> tempData(data_, data_ + numBytes);
+    #include "DisableMemoryLeakCheck.h"
+        Ogre::DataStreamPtr stream(new Ogre::MemoryDataStream((void*)&tempData[0], numBytes, false));
+    #include "EnableMemoryLeakCheck.h"
+        Ogre::MeshSerializer serializer;
+        serializer.importMesh(stream, ogreMesh.getPointer()); // Note: importMesh *adds* submeshes to an existing mesh. It doesn't replace old ones.
+    }
     // Generate tangents to mesh
     try
     {
