@@ -1,5 +1,6 @@
 // For conditions of distribution and use, see copyright notice in license.txt
 
+#include "../OpenAssetImport/OpenAssetImport.h"
 #include "DebugOperatorNew.h"
 #include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
@@ -22,6 +23,7 @@
 #include "Platform.h"
 #include <QDir>
 #include <QFileSystemWatcher>
+
 
 DEFINE_POCO_LOGGING_FUNCTIONS("Asset")
 
@@ -496,6 +498,16 @@ AssetTransferPtr AssetAPI::GetPendingTransfer(QString assetRef)
 
 AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 {
+    QString matName = NULL;
+    bool colladaFile = false;
+    if (assetRef.contains(".dae#"))
+    {
+        int indx = assetRef.indexOf('#');
+        matName = assetRef.mid(indx + 1, assetRef.length() - indx);
+        LogInfo(assetRef.toStdString());
+        colladaFile = true;
+    }
+
     if (assetRef.isEmpty())
         return AssetTransferPtr();
 
@@ -504,7 +516,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         assetType = GetResourceTypeFromResourceFileName(assetRef.toLower().toStdString().c_str());
 
     assetRef = assetRef.trimmed();
-
+    LogInfo(assetRef.toStdString());
     if (assetRef.isEmpty())
     {
         // Removed this print - seems like a bad idea to print out this warning, since there are lots of scenes with null assetrefs.
@@ -530,6 +542,36 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
             ", but now requested by type " + assetType + ".");
 
         return transfer;
+    }
+
+    if (colladaFile)
+    {
+        AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
+        LogInfo(assetRef.toStdString());
+        if (!provider)
+        {
+            LogError("AssetAPI::RequestAsset: Failed to find a provider for asset \"" + assetRef + "\", type: \"" + assetType + "\"");
+            return AssetTransferPtr();
+        }
+
+        AssetTransferPtr transfer;
+        transfer = AssetTransferPtr(new IAssetTransfer());
+
+        bool success = LoadFileToVector(assetRef.toStdString().c_str(), transfer->rawAssetData, matName);
+        if (!success)
+        {
+            LogError("AssetAPI::RequestAsset: Failed to load asset from cache!");
+            return AssetTransferPtr();
+        }
+
+        transfer->source.ref = assetRef;
+        transfer->assetType = "OgreMaterial";
+        LogInfo(transfer->DiskSource().toStdString());
+        transfer->storage = AssetStorageWeakPtr(); // Note: Unfortunately when we load an asset from cache, we don't get the information about which storage it's supposed to come from.
+        transfer->provider = provider;
+        transfer->SetCachingBehavior(false, "/home/joni/QT/omafork/bin/media/materials/scripts/Jack_Face.material");
+        LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
+        readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
     }
 
     // Check if we've already downloaded this asset before and it already is loaded in the system. We never reload an asset we've downloaded before, unless the 
@@ -569,14 +611,18 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 
     // Find the AssetProvider that will fulfill this request.
     AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
+    LogInfo(assetRef.toStdString());
     if (!provider)
     {
         LogError("AssetAPI::RequestAsset: Failed to find a provider for asset \"" + assetRef + "\", type: \"" + assetType + "\"");
         return AssetTransferPtr();
     }
 
+
+
     // Check if we can fetch the asset from the asset cache. If so, we do a immediately load the data in from the asset cache and don't go to any asset provider.
     QString assetFileInCache = assetCache->GetDiskSource(assetRef);
+    LogInfo(assetFileInCache.toStdString());
     AssetTransferPtr transfer;
 
     if (!assetFileInCache.isEmpty())
@@ -591,6 +637,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         }
         transfer->source.ref = assetRef;
         transfer->assetType = assetType;
+
         transfer->storage = AssetStorageWeakPtr(); // Note: Unfortunately when we load an asset from cache, we don't get the information about which storage it's supposed to come from.
         transfer->provider = provider;
         transfer->SetCachingBehavior(false, assetFileInCache);
@@ -933,6 +980,8 @@ void AssetAPI::AssetTransferFailed(IAssetTransfer *transfer, QString reason)
         if (dependentTransfer)
         {
             QString failReason = "Transfer of dependency " + transfer->source.ref + " failed due to reason: \"" + reason + "\"";
+            //LogInfo("we're failing");
+
             AssetTransferFailed(dependentTransfer.get(), failReason);
         }
     }
@@ -1131,9 +1180,21 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
     }
 }
 
-bool LoadFileToVector(const char *filename, std::vector<u8> &dst)
+bool LoadFileToVector(const char *filename, std::vector<u8> &dst, QString matName)
 {
-    FILE *handle = fopen(filename, "rb");
+    FILE *handle;
+    if (matName != NULL)
+    {
+        QString stringi;
+        stringi.append("/home/joni/QT/omafork/bin/scenes/TestScene_2/house.dae");
+        LogInfo("mat: " + matName);
+        LogInfo("file: " + QString(filename));
+
+        handle = fopen(stringi.toStdString().c_str(), "rb");
+    }
+    else
+        handle = fopen(filename, "rb");
+
     if (!handle)
     {
         LogError("AssetAPI::LoadFileToVector: Failed to open file '" + std::string(filename) + "' for reading.");
@@ -1152,6 +1213,34 @@ bool LoadFileToVector(const char *filename, std::vector<u8> &dst)
     dst.resize(numBytes);
     size_t numRead = fread(&dst[0], sizeof(u8), numBytes, handle);
     fclose(handle);
+
+    if (matName != NULL)
+    {
+        OpenAssetImport import;
+
+        std::ifstream::pos_type size;
+        char * memblock;
+
+        int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
+
+        // if returns false then assume data points to ogre mesh
+        bool colladaFile = import.convert(&dst[0], numBytes, param);
+
+        std::map<std::string, std::string>::iterator it;
+        it = import.matList.find(matName.toStdString());
+
+        if (it != import.matList.end())
+        {
+            LogInfo("Requested material " + matName + " was found from house.dae");
+            dst.clear();
+            for (int i = 0; i < it->second.length()-1; i++)
+            {
+                dst.push_back(it->second[i]);
+            }
+
+            return (long)it->second.length()-1;
+        }
+    }
 
     return (long)numRead == numBytes;
 }

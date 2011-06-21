@@ -2,7 +2,7 @@
 project(tundra)
 
 # CMake version requirement
-cmake_minimum_required(VERSION 2.4)
+cmake_minimum_required(VERSION 2.4) 
 
 #boost filesystem version used
 add_definitions(-DBOOST_FILESYSTEM_VERSION=2)

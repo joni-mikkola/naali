@@ -597,6 +597,7 @@ bool EC_ColladaMesh::SetMaterial(uint index, const std::string& material_name)
 
     try
     {
+        LogInfo(material_name);
         entity_->getSubEntity(index)->setMaterialName(SanitateAssetIdForOgre(material_name));
         emit MaterialChanged(index, QString(material_name.c_str()));
     }
@@ -952,34 +953,70 @@ void EC_ColladaMesh::OnAttributeUpdated(IAttribute *attribute)
         if (!ViewEnabled())
             return;
 
-        //Ensure that mesh is requested only when it's has actually changed.
-//        if(entity_)
- //           if(QString::fromStdString(entity_->getMesh()->getName()) == meshRef.Get().ref/*meshResourceId.Get()*/)
-  //              return;
-/*
-        AssetTransferPtr transfer = GetFramework()->Asset()->RequestAsset(meshRef.Get());
-        if (transfer)
-        {
-            connect(transfer.get(), SIGNAL(Loaded(AssetPtr)), SLOT(OnMeshAssetLoaded()), Qt::UniqueConnection);
-        }
-        else
-        {
-            RemoveMesh();
-        }
-        */
-
-        //HERE DO THE CONVERSION
-        //OpenAssetImport meshLoader;
-        //Ogre::String teksti = "/home/joni/QT/naali_use/bin/scenes/TestScene_2/house.dae";
-       // int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
-       // meshLoader.convert(data_, numBytes, param);
 
         LogInfo(meshRef.ToString());
         if (meshRef.Get().ref.trimmed().isEmpty())
             LogDebug("Warning: Mesh \"" + this->parent_entity_->GetName().toStdString() + "\" mesh ref was set to an empty reference!");
         meshAsset->HandleAssetRefChange(&meshRef);
 
+        std::ifstream::pos_type size;
+        char * memblock;
+
+        std::ifstream file ("/home/joni/QT/omafork/bin/scenes/TestScene_2/house.dae", std::ios::in|std::ios::binary|std::ios::ate);
+
+        if (file.is_open())
+        {
+            size = file.tellg();
+            memblock = new char [size];
+            file.seekg (0, std::ios::beg);
+            file.read (memblock, size);
+            file.close();
+        }
+
+        bool colladaFile;
+
+        int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
+
+        // if returns false then assume data points to ogre mesh
+        colladaFile = meshLoader.convert((u8*)memblock, size, param);
+
+        AssetReferenceList refList;
+        for (int i = 0; i < meshLoader.matNameList.size(); i++)
+        {
+            std::string testing;
+            testing.append("local://house.dae#");
+            testing.append(meshLoader.matNameList[i]);
+
+            AssetReference ref = testing.c_str();
+
+
+            refList.Append(ref);
+
+        }
+
+        AttributeChange::Type type = AttributeChange::Default;
+        meshMaterial.Set(refList, type);
+
+       /* AssetReferenceList refList;
+        std::string testing;
+        testing.append("local://house.dae#texture0.jpg.material");
+
+        AssetReference ref = testing.c_str();
+
+
+        refList.Append(ref);
+        refList.Append(ref);
+        refList.Append(ref);
+
+        AttributeChange::Type type = AttributeChange::Default;
+        meshMaterial.Set(refList, type);*/
+
+
+        //materialAssets.push_back();
+
+
     }
+    //no need to check materials
     else if (attribute == &meshMaterial)
     {
         if (!ViewEnabled())
@@ -990,6 +1027,7 @@ void EC_ColladaMesh::OnAttributeUpdated(IAttribute *attribute)
 //        if(!HasMaterialsChanged())
 //            return;
 
+        AssetReference ref;
         AssetReferenceList materials = meshMaterial.Get();
 
         // Reallocate the number of material asset reflisteners.
@@ -998,25 +1036,31 @@ void EC_ColladaMesh::OnAttributeUpdated(IAttribute *attribute)
         while(materialAssets.size() < materials.Size())
             materialAssets.push_back(boost::shared_ptr<AssetRefListener>(new AssetRefListener));
 
+       //emit MaterialChanged(0, QString(material_name.c_str()));
+
+
+
         for(int i = 0; i < materials.Size(); ++i)
         {
+
             connect(materialAssets[i].get(), SIGNAL(Loaded(AssetPtr)), this, SLOT(OnMaterialAssetLoaded(AssetPtr)), Qt::UniqueConnection);
             materialAssets[i]->HandleAssetRefChange(framework_->Asset(), materials[i].ref);
         }
     }
+    //no need to check for skeletons
     else if((attribute == &skeletonRef) && (!skeletonRef.Get().ref.isEmpty()))
     {
-        if (!ViewEnabled())
+       /* if (!ViewEnabled())
             return;
 
         // If same name skeleton already set no point to do it again.
-//        if (entity_ && entity_->getSkeleton() && entity_->getSkeleton()->getName() == skeletonRef.Get().ref/*skeletonId.Get()*/.toStdString())
+//        if (entity_ && entity_->getSkeleton() && entity_->getSkeleton()->getName() == skeletonRef.Get().ref/*skeletonId.Get().toStdString())
  //           return;
 
   //      AssetTransferPtr transfer = GetFramework()->Asset()->RequestAsset(skeletonRef.Get().ref);
    //     if (transfer)
     //        connect(transfer.get(), SIGNAL(Loaded(AssetPtr)), SLOT(OnSkeletonAssetLoaded(AssetPtr)), Qt::UniqueConnection);
-        skeletonAsset->HandleAssetRefChange(&skeletonRef);
+        skeletonAsset->HandleAssetRefChange(&skeletonRef);*/
     }
 }
 
@@ -1118,6 +1162,7 @@ void EC_ColladaMesh::OnSkeletonAssetLoaded(AssetPtr asset)
 
 void EC_ColladaMesh::OnMaterialAssetLoaded(AssetPtr asset)
 {
+    LogInfo(asset->DiskSource().toStdString());
     OgreMaterialAsset *ogreMaterial = dynamic_cast<OgreMaterialAsset*>(asset.get());
     if (!ogreMaterial)
     {
@@ -1125,6 +1170,7 @@ void EC_ColladaMesh::OnMaterialAssetLoaded(AssetPtr asset)
             asset->Name().toStdString() + "\", but downloaded asset was not of type OgreMaterialAsset!");
         return;
     }
+
 
     Ogre::MaterialPtr material = ogreMaterial->ogreMaterial;
     bool assetUsed = false;

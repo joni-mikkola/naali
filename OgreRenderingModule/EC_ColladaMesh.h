@@ -12,6 +12,7 @@
 #include "AssetReference.h"
 #include "Declare_EC.h"
 #include "AssetRefListener.h"
+#include <OpenAssetImport.h>
 
 #include <QVariant>
 #include <QVector3D>
@@ -144,6 +145,7 @@ class OGRE_MODULE_API EC_ColladaMesh : public IComponent
     DECLARE_EC(EC_ColladaMesh);
 
 public:
+    OpenAssetImport meshLoader;
     //! Transformation attribute is used to do some position, rotation and scale adjustments.
     Q_PROPERTY(Transform nodeTransformation READ getnodeTransformation WRITE setnodeTransformation);
     DEFINE_QPROPERTY_ATTRIBUTE(Transform, nodeTransformation);
@@ -457,7 +459,7 @@ private:
     Ogre::TagPoint* bone_tagpoint_;
     EC_ColladaMesh* bone_attached_mesh_;
     EC_ColladaMesh* bone_parent_mesh_;
-
+    
     /// Manages material asset requests for EC_ColladaMesh. This utility object is used so that EC_ColladaMesh also gets notifications about
     /// changes to material assets on disk.
     std::vector<AssetRefListenerPtr> materialAssets;

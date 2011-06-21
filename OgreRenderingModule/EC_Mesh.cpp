@@ -977,6 +977,7 @@ void EC_Mesh::OnAttributeUpdated(IAttribute *attribute)
 
         for(int i = 0; i < materials.Size(); ++i)
         {
+            LogInfo(materials[i].ref.toStdString());
             connect(materialAssets[i].get(), SIGNAL(Loaded(AssetPtr)), this, SLOT(OnMaterialAssetLoaded(AssetPtr)), Qt::UniqueConnection);
             materialAssets[i]->HandleAssetRefChange(framework_->Asset(), materials[i].ref);
         }
@@ -1095,6 +1096,7 @@ void EC_Mesh::OnSkeletonAssetLoaded(AssetPtr asset)
 
 void EC_Mesh::OnMaterialAssetLoaded(AssetPtr asset)
 {
+    LogInfo(asset->DiskSource().toStdString());
     OgreMaterialAsset *ogreMaterial = dynamic_cast<OgreMaterialAsset*>(asset.get());
     if (!ogreMaterial)
     {

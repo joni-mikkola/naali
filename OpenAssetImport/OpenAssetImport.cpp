@@ -82,14 +82,14 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
         // propably to request more postprocessing than we do in this example.
 
         scene = importer.ReadFileFromMemory(fileData, numBytes, 0
-                                                                | aiProcess_SplitLargeMeshes
+                                                                //| aiProcess_SplitLargeMeshes
                                                                 //  | aiProcess_MakeLeftHanded
                                                                 // | aiProcess_Triangulate
                                                                 | aiProcess_FlipUVs
-                                                                //   | aiProcess_FindInvalidData
+                                                                | aiProcess_FindInvalidData
                                                                 //  | aiProcess_FlipWindingOrder
-                                                                | aiProcess_FixInfacingNormals
-                                                                | aiProcess_TransformUVCoords
+                                                                //| aiProcess_FixInfacingNormals
+                                                                //| aiProcess_TransformUVCoords
                                                                 //   | aiProcess_GenUVCoords
                                                                 | aiProcess_JoinIdenticalVertices
                                                                 | aiProcess_PreTransformVertices
@@ -100,6 +100,9 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                                                                 | aiProcess_FindDegenerates
                                                                 | aiProcess_SortByPType
                                                                 );
+
+
+
 
     // If the import failed, report it
         if( !scene)
@@ -223,7 +226,9 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                                         exportedNames.push_back(matName);
                                         std::string testString = ms.getQueuedAsString();
 
-                                        matList.push_back(ms.getQueuedAsString());
+                                        //matList.push_back(ms.getQueuedAsString());
+                                        matList[sm->getMaterialName() + ".material"] = ms.getQueuedAsString();
+                                        matNameList.push_back(sm->getMaterialName() + ".material");
                                         ms.exportQueued("/home/joni/QT/naali_use/bin/scenes/TestScene_2/" + sm->getMaterialName() + ".material", true);
 
 

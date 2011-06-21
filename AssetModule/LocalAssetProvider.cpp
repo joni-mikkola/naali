@@ -190,13 +190,15 @@ AssetUploadTransferPtr LocalAssetProvider::UploadAssetFromFileInMemory(const u8 
 
 void LocalAssetProvider::CompletePendingFileDownloads()
 {
+    bool daeFile = false;
     while(pendingDownloads.size() > 0)
     {
+        daeFile = false;
         AssetTransferPtr transfer = pendingDownloads.back();
         pendingDownloads.pop_back();
 
         QString ref = transfer->source.ref;
-
+        AssetModule::LogInfo(transfer->source.ref.toStdString());
 //        AssetModule::LogDebug("New local asset request: " + ref.toStdString());
 
         // Strip file: trims asset provider id (f.ex. 'file://') and potential mesh name inside the file (everything after last slash)
@@ -211,10 +213,12 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
-        if (path.isEmpty())
+
+        if (path.isEmpty() && !ref.contains(".dae#"))
         {
             QString reason = "Failed to find local asset with filename \"" + ref + "\"!";
 //            AssetModule::LogWarning(reason.toStdString());
+            AssetModule::LogInfo("we're failing");
             framework->Asset()->AssetTransferFailed(transfer.get(), reason);
             continue;
         }
@@ -222,11 +226,25 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         QFileInfo file(GuaranteeTrailingSlash(path) + ref);
         QString absoluteFilename = file.absoluteFilePath();
 
-        bool success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
+        QString matName;
+
+        if (absoluteFilename.contains("#"))
+        {
+
+            int indx = absoluteFilename.indexOf('#');
+            matName = absoluteFilename.mid(indx + 1, absoluteFilename.length() - indx);
+            //absoluteFilename.remove(indx, absoluteFilename.length() - indx);
+        }
+
+        AssetModule::LogInfo("abs: " + absoluteFilename.toStdString());
+        AssetModule::LogInfo("ref: " + ref.toStdString());
+
+        bool success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData, matName);
         if (!success)
         {
             QString reason = "Failed to read asset data for asset \"" + ref + "\" from file \"" + absoluteFilename + "\"";
-//            AssetModule::LogError(reason.toStdString());
+//            AssetModule::LogError(reason.toStdString())
+            AssetModule::LogInfo("we're failing");
             framework->Asset()->AssetTransferFailed(transfer.get(), reason);
             continue;
         }

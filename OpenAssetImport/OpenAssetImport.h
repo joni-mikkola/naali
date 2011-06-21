@@ -1,5 +1,5 @@
-#ifndef __OpenAssetImport_h__
-#define __OpenAssetImport_h__
+#ifndef incl_OpenAssetImport_h
+#define incl_OpenAssetImport_h
 
 #include <string>
 #include <OgreMesh.h>
@@ -38,14 +38,16 @@ public:
         };
 
     OpenAssetImport();
-    virtual ~OpenAssetImport();
+    ~OpenAssetImport();
 
         // customAnimationName is only applied if the skeleton only has one animation
     
     bool convert(const unsigned char * fileData, size_t numBytes, int loaderParams);
     Ogre::MeshPtr mMesh;
     std::string txmlText;
-    std::vector<std::string> matList;
+    std::map<std::string, std::string> matList;
+    //std::vector<std::string> matList;
+    std::vector<std::string> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
 
 private:

@@ -28,7 +28,7 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     /// Force an unload of this data first.
     Unload();
 
-    //HERE DO THE CONVERSION
+
     bool colladaFile;
     OpenAssetImport meshLoader;
     int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
@@ -36,33 +36,35 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     // if returns false then assume data points to ogre mesh
     colladaFile = meshLoader.convert(data_, numBytes, param);
 
-    //meshLoader.mMesh;
-    if (colladaFile)
+    if (ogreMesh.isNull())
     {
-        ogreMesh = meshLoader.mMesh;
-        // do something
-    }
-    else
-    {
+        ogreMesh = Ogre::MeshManager::getSingleton().createManual(
+            OgreRenderer::SanitateAssetIdForOgre(this->Name().toStdString()), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
         if (ogreMesh.isNull())
         {
-            ogreMesh = Ogre::MeshManager::getSingleton().createManual(
-                OgreRenderer::SanitateAssetIdForOgre(this->Name().toStdString()), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
-            if (ogreMesh.isNull())
-            {
-                LogError("Failed to create mesh " + Name().toStdString());
-                return false;
-            }
-            ogreMesh->setAutoBuildEdgeLists(false);
+            LogError("Failed to create mesh " + Name().toStdString());
+            return false;
         }
-
-        std::vector<u8> tempData(data_, data_ + numBytes);
-    #include "DisableMemoryLeakCheck.h"
-        Ogre::DataStreamPtr stream(new Ogre::MemoryDataStream((void*)&tempData[0], numBytes, false));
-    #include "EnableMemoryLeakCheck.h"
-        Ogre::MeshSerializer serializer;
-        serializer.importMesh(stream, ogreMesh.getPointer()); // Note: importMesh *adds* submeshes to an existing mesh. It doesn't replace old ones.
+        ogreMesh->setAutoBuildEdgeLists(false);
     }
+
+    std::vector<u8> tempData(data_, data_ + numBytes);
+    Ogre::MeshSerializer serializer;
+
+    if (colladaFile)
+    {
+        QString tempFilename = assetAPI->GenerateTemporaryNonexistingAssetFilename(Name());
+        serializer.exportMesh(meshLoader.mMesh.get(), tempFilename.toStdString());
+        LoadFileToVector(tempFilename.toStdString().c_str(), tempData);
+        QFile::remove(tempFilename); // Delete the temporary file we used for serialization.
+        numBytes = tempData.size();
+    }
+
+#include "DisableMemoryLeakCheck.h"
+    Ogre::DataStreamPtr stream(new Ogre::MemoryDataStream((void*)&tempData[0], numBytes, false));
+#include "EnableMemoryLeakCheck.h"
+    serializer.importMesh(stream, ogreMesh.getPointer()); // Note: importMesh *adds* submeshes to an existing mesh. It doesn't replace old ones.
+
     // Generate tangents to mesh
     try
     {
@@ -72,6 +74,7 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
             ogreMesh->buildTangentVectors(Ogre::VES_TANGENT, src, dest);
     }
     catch (...) {}
+    
     
     // Generate extremity points to submeshes, 1 should be enough
     try

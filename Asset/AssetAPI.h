@@ -15,7 +15,7 @@ class QFileSystemWatcher;
 
 /// Loads the given local file into the specified vector. Clears all data previously in the vector.
 /// Returns true on success.
-bool LoadFileToVector(const char *filename, std::vector<u8> &dst);
+bool LoadFileToVector(const char *filename, std::vector<u8> &dst, QString matName = NULL);
 
 /// Copies the given source file to the destination file on the local filesystem. Returns true on success.
 bool CopyAssetFile(const char *sourceFile, const char *destFile);
@@ -39,6 +39,7 @@ public:
     ~AssetAPI();
 
 public:
+    AssetPtr pointteri;
     /// Registers a type factory for creating assets of the type governed by the factory.
     void RegisterAssetTypeFactory(AssetTypeFactoryPtr factory);
 
@@ -113,7 +114,7 @@ public:
         AssetRefLocalUrl,       ///< The assetRef points to the local filesystem, using a local specifier like local://.
         AssetRefExternalUrl,    ///< The assetRef points to a location external to the system, using a URL protocol specifier.
         AssetRefDefaultStorage, ///< The assetRef points to the default system storage.
-        AssetRefNamedStorage    ///< The assetRef points to an explicitly named storage.
+        AssetRefNamedStorage,   ///< The assetRef points to an explicitly named storage.
     };
 
 public slots:
