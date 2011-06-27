@@ -216,6 +216,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         if (path.isEmpty() && !ref.contains(".dae#"))
         {
+            AssetModule::LogInfo("TESKSTIÄ: " + ref.toStdString());
             QString reason = "Failed to find local asset with filename \"" + ref + "\"!";
 //            AssetModule::LogWarning(reason.toStdString());
             AssetModule::LogInfo("we're failing");
@@ -226,25 +227,35 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         QFileInfo file(GuaranteeTrailingSlash(path) + ref);
         QString absoluteFilename = file.absoluteFilePath();
 
-        QString matName;
+        bool success;
 
-        if (absoluteFilename.contains("#"))
+        if (ref.contains(".dae#"))
         {
 
-            int indx = absoluteFilename.indexOf('#');
-            matName = absoluteFilename.mid(indx + 1, absoluteFilename.length() - indx);
-            //absoluteFilename.remove(indx, absoluteFilename.length() - indx);
+            QString reffi = "local://";
+            reffi.append(ref);
+            int indx = reffi.indexOf('#');
+            QString matName = reffi.mid(indx + 1, reffi.length() - indx);
+            reffi.remove(indx, reffi.length() - indx);
+            std::map<std::string, std::string> test = framework->Asset()->mappi[reffi.toStdString()];
+
+            std::string matInfo = test[matName.toStdString()];
+
+            for (int i = 0; i < matInfo.length()-1; i++)
+            {
+                transfer->rawAssetData.push_back(matInfo[i]);
+            }
+
+            success = true;
+
         }
+        else
+            success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
 
-        AssetModule::LogInfo("abs: " + absoluteFilename.toStdString());
-        AssetModule::LogInfo("ref: " + ref.toStdString());
-
-        bool success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData, matName);
         if (!success)
         {
             QString reason = "Failed to read asset data for asset \"" + ref + "\" from file \"" + absoluteFilename + "\"";
 //            AssetModule::LogError(reason.toStdString())
-            AssetModule::LogInfo("we're failing");
             framework->Asset()->AssetTransferFailed(transfer.get(), reason);
             continue;
         }

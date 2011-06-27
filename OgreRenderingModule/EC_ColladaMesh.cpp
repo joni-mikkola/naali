@@ -597,7 +597,6 @@ bool EC_ColladaMesh::SetMaterial(uint index, const std::string& material_name)
 
     try
     {
-        LogInfo(material_name);
         entity_->getSubEntity(index)->setMaterialName(SanitateAssetIdForOgre(material_name));
         emit MaterialChanged(index, QString(material_name.c_str()));
     }
@@ -953,11 +952,11 @@ void EC_ColladaMesh::OnAttributeUpdated(IAttribute *attribute)
         if (!ViewEnabled())
             return;
 
+        QString parsedRef = "local://house.dae";
 
-        LogInfo(meshRef.ToString());
-        if (meshRef.Get().ref.trimmed().isEmpty())
-            LogDebug("Warning: Mesh \"" + this->parent_entity_->GetName().toStdString() + "\" mesh ref was set to an empty reference!");
-        meshAsset->HandleAssetRefChange(&meshRef);
+        std::vector<u8> fileData;
+        OpenAssetImport import;
+        int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
 
         std::ifstream::pos_type size;
         char * memblock;
@@ -973,47 +972,43 @@ void EC_ColladaMesh::OnAttributeUpdated(IAttribute *attribute)
             file.close();
         }
 
-        bool colladaFile;
+        bool collada = import.convert((u8*)memblock, size, param);
 
-        int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
+        // store all the material stuff into a map
+        framework_->Asset()->mappi[parsedRef.toStdString()] = import.matList;
+        std::map<std::string, std::string>::iterator iter;
 
-        // if returns false then assume data points to ogre mesh
-        colladaFile = meshLoader.convert((u8*)memblock, size, param);
+        //for ( iter = import.matList.begin(); iter !=  import.matList.end(); ++iter )
+        //    LogInfo(iter->second);
 
+        if (meshRef.Get().ref.trimmed().isEmpty())
+            LogDebug("Warning: Mesh \"" + this->parent_entity_->GetName().toStdString() + "\" mesh ref was set to an empty reference!");
+
+        meshAsset->HandleAssetRefChange(&meshRef);
+
+        // Inserd materials into the scene
         AssetReferenceList refList;
-        for (int i = 0; i < meshLoader.matNameList.size(); i++)
+        for (int i = 0; i < import.matNameList.size(); i++)
         {
-            std::string testing;
-            testing.append("local://house.dae#");
-            testing.append(meshLoader.matNameList[i]);
-
-            AssetReference ref = testing.c_str();
-
-
-            refList.Append(ref);
+            std::string parseString;
+            parseString.append("local://house.dae#");
+            parseString.append(import.matNameList[i]);
+            refList.Append(AssetReference(parseString));
 
         }
+
+       // refList.Append(AssetReference("local://Jack_Body.material"));
+        AttributeChange::Type type = AttributeChange::Default;
+        meshMaterial.Set(refList, type);
+
+        /*AssetReferenceList refList;
+        refList.Append(AssetReference("local://Jack_Body.material"));
 
         AttributeChange::Type type = AttributeChange::Default;
         meshMaterial.Set(refList, type);
 
-       /* AssetReferenceList refList;
-        std::string testing;
-        testing.append("local://house.dae#texture0.jpg.material");
-
-        AssetReference ref = testing.c_str();
-
-
-        refList.Append(ref);
-        refList.Append(ref);
-        refList.Append(ref);
-
-        AttributeChange::Type type = AttributeChange::Default;
-        meshMaterial.Set(refList, type);*/
-
-
-        //materialAssets.push_back();
-
+        SetMaterial(0, QString("local://Jack_Body.material"));
+        ApplyMaterial();*/
 
     }
     //no need to check materials
@@ -1027,22 +1022,16 @@ void EC_ColladaMesh::OnAttributeUpdated(IAttribute *attribute)
 //        if(!HasMaterialsChanged())
 //            return;
 
-        AssetReference ref;
         AssetReferenceList materials = meshMaterial.Get();
-
+    
         // Reallocate the number of material asset reflisteners.
         while(materialAssets.size() > materials.Size())
             materialAssets.pop_back();
         while(materialAssets.size() < materials.Size())
             materialAssets.push_back(boost::shared_ptr<AssetRefListener>(new AssetRefListener));
 
-       //emit MaterialChanged(0, QString(material_name.c_str()));
-
-
-
         for(int i = 0; i < materials.Size(); ++i)
         {
-
             connect(materialAssets[i].get(), SIGNAL(Loaded(AssetPtr)), this, SLOT(OnMaterialAssetLoaded(AssetPtr)), Qt::UniqueConnection);
             materialAssets[i]->HandleAssetRefChange(framework_->Asset(), materials[i].ref);
         }
@@ -1162,7 +1151,6 @@ void EC_ColladaMesh::OnSkeletonAssetLoaded(AssetPtr asset)
 
 void EC_ColladaMesh::OnMaterialAssetLoaded(AssetPtr asset)
 {
-    LogInfo(asset->DiskSource().toStdString());
     OgreMaterialAsset *ogreMaterial = dynamic_cast<OgreMaterialAsset*>(asset.get());
     if (!ogreMaterial)
     {

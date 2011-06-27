@@ -25,6 +25,8 @@
 #include <boost/tuple/tuple.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
+static int dummyMatCount = 0;
+
 Ogre::String toString(const aiColor4D& colour)
 {
         return	Ogre::StringConverter::toString(colour.r) + " " +
@@ -44,8 +46,9 @@ OpenAssetImport::~OpenAssetImport()
 {
 }
 
-bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, int loaderParams)
+bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat)
 {
+        dummyMatCount = 0;
         mLoaderParams = loaderParams;
         //mCustomAnimationName = customAnimationName;
         if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -73,7 +76,7 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
     // degenerate structures from bad modelling or bad import/export.  if they
     // are needed it can be turned on with IncludeLinesPoints
     int removeSortFlags = importer.GetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE);
-
+    genMaterials = noMat;
     removeSortFlags |= aiPrimitiveType_POINT | aiPrimitiveType_LINE;
 
 
@@ -82,24 +85,24 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
         // propably to request more postprocessing than we do in this example.
 
         scene = importer.ReadFileFromMemory(fileData, numBytes, 0
-                                                                //| aiProcess_SplitLargeMeshes
-                                                                //  | aiProcess_MakeLeftHanded
-                                                                // | aiProcess_Triangulate
-                                                                | aiProcess_FlipUVs
-                                                                | aiProcess_FindInvalidData
-                                                                //  | aiProcess_FlipWindingOrder
-                                                                //| aiProcess_FixInfacingNormals
-                                                                //| aiProcess_TransformUVCoords
-                                                                //   | aiProcess_GenUVCoords
-                                                                | aiProcess_JoinIdenticalVertices
-                                                                | aiProcess_PreTransformVertices
-                                                                | aiProcess_OptimizeMeshes
-                                                                | aiProcess_RemoveRedundantMaterials
-                                                                | aiProcess_ImproveCacheLocality
-                                                                | aiProcess_LimitBoneWeights
-                                                                | aiProcess_FindDegenerates
-                                                                | aiProcess_SortByPType
-                                                                );
+                                            | aiProcess_SplitLargeMeshes
+                                            //  | aiProcess_MakeLeftHanded
+                                            // | aiProcess_Triangulate
+                                            | aiProcess_FlipUVs
+                                            //   | aiProcess_FindInvalidData
+                                            //  | aiProcess_FlipWindingOrder
+                                            | aiProcess_FixInfacingNormals
+                                            | aiProcess_TransformUVCoords
+                                            //   | aiProcess_GenUVCoords
+                                            | aiProcess_JoinIdenticalVertices
+                                            | aiProcess_PreTransformVertices
+                                            | aiProcess_OptimizeMeshes
+                                            | aiProcess_RemoveRedundantMaterials
+                                            | aiProcess_ImproveCacheLocality
+                                            | aiProcess_LimitBoneWeights
+                                            | aiProcess_FindDegenerates
+                                            | aiProcess_SortByPType
+                                            );
 
 
 
@@ -198,9 +201,12 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
 
         txmlText.clear();
         matList.clear();
-        if(1)///*mLoaderParams & */!LP_GENERATE_MATERIALS_AS_CODE)
+        matNameList.clear();
+        
+        if(!noMat)///*mLoaderParams & */!LP_GENERATE_MATERIALS_AS_CODE)
         {
                 Ogre::MaterialSerializer ms;
+
                 std::vector<Ogre::String> exportedNames;
                 int tick = 0;
                 for(MeshVector::iterator it = mMeshes.begin(); it != mMeshes.end(); ++it)
@@ -210,6 +216,8 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                         // queue up the materials for serialise
                         Ogre::MaterialManager *mmptr = Ogre::MaterialManager::getSingletonPtr();
                         Ogre::Mesh::SubMeshIterator it = mMesh->getSubMeshIterator();
+                        
+
                         while(it.hasMoreElements())
                         {
                                 Ogre::SubMesh* sm = it.getNext();
@@ -219,31 +227,21 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                                         Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
                                         Ogre::Material * materiaali = materialPtr.getPointer();
 
+
                                         //set culling to none, so "invisible" faces can be seen
-                                        //if (matName.find("jpg") != Ogre::String::npos)
-                                        materiaali->setCullingMode(Ogre::CULL_NONE);
-                                        ms.queueForExport(materialPtr);
+                                        //materiaali->setCullingMode(Ogre::CULL_NONE);
+                                        ms.queueForExport(materialPtr, true, false);
                                         exportedNames.push_back(matName);
                                         std::string testString = ms.getQueuedAsString();
 
-                                        //matList.push_back(ms.getQueuedAsString());
                                         matList[sm->getMaterialName() + ".material"] = ms.getQueuedAsString();
                                         matNameList.push_back(sm->getMaterialName() + ".material");
-                                        ms.exportQueued("/home/joni/QT/naali_use/bin/scenes/TestScene_2/" + sm->getMaterialName() + ".material", true);
+                                        ms.clearQueue();
 
-
-                                        txmlText.append("local://" + sm->getMaterialName() + ".material;");
                                         exportedNames.clear();
                                 }
                         }
                 }
-
-                if(exportedNames.size())
-                {
-                      //  ms.exportQueued("/home/joni/AssImpTesting/AsssLoader/boy" + mBasename + ".material", true);
-                }
-
-
         }
         else
         {
@@ -827,7 +825,7 @@ Ogre::String ReplaceSpaces(const Ogre::String& s)
 
 Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* mat, const Ogre::String& mDir)
 {
-        static int dummyMatCount = 0;
+        
 
         // extreme fallback texture -- 2x2 hot pink
         static Ogre::uint8 s_RGB[] = {128, 0, 255, 128, 0, 255, 128, 0, 255, 128, 0, 255};

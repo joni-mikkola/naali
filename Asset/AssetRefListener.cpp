@@ -29,6 +29,7 @@ void AssetRefListener::HandleAssetRefChange(IAttribute *assetRef, const QString&
 
 void AssetRefListener::HandleAssetRefChange(AssetAPI *assetApi, QString assetRef, const QString& assetType)
 {
+
     assert(assetApi);
 
     assetRef = assetRef.trimmed();
@@ -45,6 +46,7 @@ void AssetRefListener::HandleAssetRefChange(AssetAPI *assetApi, QString assetRef
     if (assetData)
         disconnect(assetData.get(), SIGNAL(Loaded(AssetPtr)), this, SIGNAL(Loaded(AssetPtr)));
     asset = AssetPtr();
+
 }
 
 void AssetRefListener::EmitDownloaded(IAssetTransfer *transfer)

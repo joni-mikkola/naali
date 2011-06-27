@@ -7,6 +7,7 @@
 #include <vector>
 #include <utility>
 #include <map>
+#include <../OpenAssetImport/OpenAssetImport.h>
 
 #include "CoreTypes.h"
 #include "AssetFwd.h"
@@ -15,7 +16,7 @@ class QFileSystemWatcher;
 
 /// Loads the given local file into the specified vector. Clears all data previously in the vector.
 /// Returns true on success.
-bool LoadFileToVector(const char *filename, std::vector<u8> &dst, QString matName = NULL);
+bool LoadFileToVector(const char *filename, std::vector<u8> &dst);
 
 /// Copies the given source file to the destination file on the local filesystem. Returns true on success.
 bool CopyAssetFile(const char *sourceFile, const char *destFile);
@@ -39,7 +40,7 @@ public:
     ~AssetAPI();
 
 public:
-    AssetPtr pointteri;
+    std::map<std::string, std::map<std::string, std::string> > mappi;
     /// Registers a type factory for creating assets of the type governed by the factory.
     void RegisterAssetTypeFactory(AssetTypeFactoryPtr factory);
 

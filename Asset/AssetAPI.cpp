@@ -16,6 +16,7 @@
 #include "LoggingFunctions.h"
 #include "EventManager.h"
 #include "CoreException.h"
+#include "map"
 #include "IAssetTypeFactory.h"
 #include "IAssetUploadTransfer.h"
 #include "GenericAssetFactory.h"
@@ -499,14 +500,7 @@ AssetTransferPtr AssetAPI::GetPendingTransfer(QString assetRef)
 AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 {
     QString matName = NULL;
-    bool colladaFile = false;
-    if (assetRef.contains(".dae#"))
-    {
-        int indx = assetRef.indexOf('#');
-        matName = assetRef.mid(indx + 1, assetRef.length() - indx);
-        LogInfo(assetRef.toStdString());
-        colladaFile = true;
-    }
+    QString parsedRef = assetRef.mid(0, assetRef.indexOf("#"));
 
     if (assetRef.isEmpty())
         return AssetTransferPtr();
@@ -516,7 +510,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         assetType = GetResourceTypeFromResourceFileName(assetRef.toLower().toStdString().c_str());
 
     assetRef = assetRef.trimmed();
-    LogInfo(assetRef.toStdString());
+
     if (assetRef.isEmpty())
     {
         // Removed this print - seems like a bad idea to print out this warning, since there are lots of scenes with null assetrefs.
@@ -527,6 +521,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 
     // Turn named storage (and default storage) specifiers to absolute specifiers.
     assetRef = LookupAssetRefToStorage(assetRef);
+
 
     // To optimize, we first check if there is an outstanding request to the given asset. If so, we return that request. In effect, we never
     // have multiple transfers running to the same asset. (Important: This must occur before checking the assets map for whether we already have the asset in memory, since
@@ -544,34 +539,38 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         return transfer;
     }
 
-    if (colladaFile)
+    if (assetRef.contains(".dae#"))
     {
         AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
-        LogInfo(assetRef.toStdString());
+
         if (!provider)
         {
             LogError("AssetAPI::RequestAsset: Failed to find a provider for asset \"" + assetRef + "\", type: \"" + assetType + "\"");
             return AssetTransferPtr();
         }
 
+        int indx = assetRef.indexOf('#');
+        matName = assetRef.mid(indx + 1, assetRef.length() - indx);
+
         AssetTransferPtr transfer;
         transfer = AssetTransferPtr(new IAssetTransfer());
 
-        bool success = LoadFileToVector(assetRef.toStdString().c_str(), transfer->rawAssetData, matName);
-        if (!success)
+        std::map<std::string, std::string> test = mappi[parsedRef.toStdString()];
+        std::string matInfo = test[matName.toStdString()];
+
+        for (int i = 0; i < matInfo.length()-1; i++)
         {
-            LogError("AssetAPI::RequestAsset: Failed to load asset from cache!");
-            return AssetTransferPtr();
+            transfer->rawAssetData.push_back(matInfo[i]);
         }
 
         transfer->source.ref = assetRef;
-        transfer->assetType = "OgreMaterial";
-        LogInfo(transfer->DiskSource().toStdString());
+        transfer->assetType = assetType;
         transfer->storage = AssetStorageWeakPtr(); // Note: Unfortunately when we load an asset from cache, we don't get the information about which storage it's supposed to come from.
         transfer->provider = provider;
-        transfer->SetCachingBehavior(false, "/home/joni/QT/omafork/bin/media/materials/scripts/Jack_Face.material");
+        transfer->SetCachingBehavior(false, "");
         LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
         readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
+        //return(transfer);
     }
 
     // Check if we've already downloaded this asset before and it already is loaded in the system. We never reload an asset we've downloaded before, unless the 
@@ -608,21 +607,16 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         pendingDownloadRequests[assetRef] = pendingRequest;
         return pendingRequest.transfer; ///\bug Problem. When we return this structure, the client will connect to this.
     }
-
     // Find the AssetProvider that will fulfill this request.
     AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
-    LogInfo(assetRef.toStdString());
     if (!provider)
     {
         LogError("AssetAPI::RequestAsset: Failed to find a provider for asset \"" + assetRef + "\", type: \"" + assetType + "\"");
         return AssetTransferPtr();
     }
 
-
-
     // Check if we can fetch the asset from the asset cache. If so, we do a immediately load the data in from the asset cache and don't go to any asset provider.
     QString assetFileInCache = assetCache->GetDiskSource(assetRef);
-    LogInfo(assetFileInCache.toStdString());
     AssetTransferPtr transfer;
 
     if (!assetFileInCache.isEmpty())
@@ -655,7 +649,6 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         return AssetTransferPtr();
     }
     transfer->provider = provider;
-
     // Store the newly allocated AssetTransfer internally, so that any duplicated requests to this asset will return the same request pointer,
     // so we'll avoid multiple downloads to the exact same asset.
     assert(currentTransfers.find(assetRef) == currentTransfers.end());
@@ -879,7 +872,6 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
     // 1) It could be a real AssetTransfer from a real AssetProvider.
     // 2) It could be an AssetTransfer to an Asset that was already downloaded before, in which case transfer_->asset is already filled and loaded at this point.
     // 3) It could be an AssetTransfer that was fulfilled from the disk cache, in which case no AssetProvider was invoked to get here. (we used the readyTransfers queue for this).
-
     assert(transfer_);
     AssetTransferPtr transfer = transfer_->shared_from_this(); // Elevate to a SharedPtr immediately to keep at least one ref alive of this transfer for the duration of this function call.
 //    LogDebug("Transfer of asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" succeeded.");
@@ -899,7 +891,8 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 
     // We should be tracking this transfer in an internal data structure.
     AssetTransferMap::iterator iter = currentTransfers.find(transfer->source.ref);
-    if (iter == currentTransfers.end())
+    //DAE CHECK
+    if (iter == currentTransfers.end() && !transfer->source.ref.contains(".dae#"))
         LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
 
     // We've finished an asset data download, now create an actual instance of an asset of that type.
@@ -934,13 +927,14 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 
     // Remember the newly created asset in AssetAPI's internal data structure to allow clients to later fetch it without re-requesting it.
     AssetMap::iterator iter2 = assets.find(transfer->source.ref);
-    if (iter2 != assets.end())
+    // DAE CHECK
+    if (iter2 != assets.end() && !transfer->source.ref.contains(".dae#"))
     {
         AssetPtr existing = iter2->second;
         LogWarning("AssetAPI: Overwriting a previously downloaded asset \"" + existing->Name() + "\", type \"" + existing->Type() + "\" with asset of same name!");
     }
     assets[transfer->source.ref] = transfer->asset;
-    if (diskSourceChangeWatcher && !transfer->asset->DiskSource().isEmpty())
+    if (diskSourceChangeWatcher && !transfer->asset->DiskSource().isEmpty() && !transfer->source.ref.contains(".dae#"))
         diskSourceChangeWatcher->addPath(transfer->asset->DiskSource());
     emit AssetCreated(transfer->asset);
 
@@ -980,7 +974,6 @@ void AssetAPI::AssetTransferFailed(IAssetTransfer *transfer, QString reason)
         if (dependentTransfer)
         {
             QString failReason = "Transfer of dependency " + transfer->source.ref + " failed due to reason: \"" + reason + "\"";
-            //LogInfo("we're failing");
 
             AssetTransferFailed(dependentTransfer.get(), failReason);
         }
@@ -1026,7 +1019,8 @@ void AssetAPI::AssetDependenciesCompleted(AssetTransferPtr transfer)
     if (iter != currentTransfers.end())
         currentTransfers.erase(iter);
     else // Even if we didn't know about this transfer, just print a warning and continue execution here nevertheless.
-        LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
+        if (!transfer->source.ref.contains(".dae#"))
+            LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
 
     if (transfer->rawAssetData.size() == 0)
     {
@@ -1180,21 +1174,9 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
     }
 }
 
-bool LoadFileToVector(const char *filename, std::vector<u8> &dst, QString matName)
+bool LoadFileToVector(const char *filename, std::vector<u8> &dst)
 {
-    FILE *handle;
-    if (matName != NULL)
-    {
-        QString stringi;
-        stringi.append("/home/joni/QT/omafork/bin/scenes/TestScene_2/house.dae");
-        LogInfo("mat: " + matName);
-        LogInfo("file: " + QString(filename));
-
-        handle = fopen(stringi.toStdString().c_str(), "rb");
-    }
-    else
-        handle = fopen(filename, "rb");
-
+    FILE *handle = fopen(filename, "rb");
     if (!handle)
     {
         LogError("AssetAPI::LoadFileToVector: Failed to open file '" + std::string(filename) + "' for reading.");
@@ -1213,34 +1195,6 @@ bool LoadFileToVector(const char *filename, std::vector<u8> &dst, QString matNam
     dst.resize(numBytes);
     size_t numRead = fread(&dst[0], sizeof(u8), numBytes, handle);
     fclose(handle);
-
-    if (matName != NULL)
-    {
-        OpenAssetImport import;
-
-        std::ifstream::pos_type size;
-        char * memblock;
-
-        int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
-
-        // if returns false then assume data points to ogre mesh
-        bool colladaFile = import.convert(&dst[0], numBytes, param);
-
-        std::map<std::string, std::string>::iterator it;
-        it = import.matList.find(matName.toStdString());
-
-        if (it != import.matList.end())
-        {
-            LogInfo("Requested material " + matName + " was found from house.dae");
-            dst.clear();
-            for (int i = 0; i < it->second.length()-1; i++)
-            {
-                dst.push_back(it->second[i]);
-            }
-
-            return (long)it->second.length()-1;
-        }
-    }
 
     return (long)numRead == numBytes;
 }

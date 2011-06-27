@@ -41,8 +41,9 @@ public:
     ~OpenAssetImport();
 
         // customAnimationName is only applied if the skeleton only has one animation
-    
-    bool convert(const unsigned char * fileData, size_t numBytes, int loaderParams);
+
+    bool convert(const unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat = false);
+    bool genMaterials;
     Ogre::MeshPtr mMesh;
     std::string txmlText;
     std::map<std::string, std::string> matList;

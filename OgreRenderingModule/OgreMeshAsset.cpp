@@ -29,12 +29,12 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     Unload();
 
 
-    bool colladaFile;
+    bool colladaFil;
     OpenAssetImport meshLoader;
     int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
 
     // if returns false then assume data points to ogre mesh
-    colladaFile = meshLoader.convert(data_, numBytes, param);
+    colladaFil = meshLoader.convert(data_, numBytes, param, true);
 
     if (ogreMesh.isNull())
     {
@@ -51,7 +51,7 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     std::vector<u8> tempData(data_, data_ + numBytes);
     Ogre::MeshSerializer serializer;
 
-    if (colladaFile)
+    if (colladaFil)
     {
         QString tempFilename = assetAPI->GenerateTemporaryNonexistingAssetFilename(Name());
         serializer.exportMesh(meshLoader.mMesh.get(), tempFilename.toStdString());
@@ -77,7 +77,7 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     
     
     // Generate extremity points to submeshes, 1 should be enough
-    try
+    /*try
     {
         for(uint i = 0; i < ogreMesh->getNumSubMeshes(); ++i)
         {
@@ -86,7 +86,7 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
                 smesh->generateExtremes(1);
         }
     }
-    catch (...) {}
+    catch (...) {}*/
         
     try
     {
