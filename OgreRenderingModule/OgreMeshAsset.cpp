@@ -29,12 +29,13 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     Unload();
 
 
-    bool colladaFil;
+
+    bool colladaFile;
     OpenAssetImport meshLoader;
     int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
 
     // if returns false then assume data points to ogre mesh
-    colladaFil = meshLoader.convert(data_, numBytes, param, true);
+    colladaFile = meshLoader.convert(data_, numBytes, param, true);
 
     if (ogreMesh.isNull())
     {
@@ -51,7 +52,7 @@ bool OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numBytes)
     std::vector<u8> tempData(data_, data_ + numBytes);
     Ogre::MeshSerializer serializer;
 
-    if (colladaFil)
+    if (colladaFile)
     {
         QString tempFilename = assetAPI->GenerateTemporaryNonexistingAssetFilename(Name());
         serializer.exportMesh(meshLoader.mMesh.get(), tempFilename.toStdString());

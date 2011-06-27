@@ -499,9 +499,6 @@ AssetTransferPtr AssetAPI::GetPendingTransfer(QString assetRef)
 
 AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 {
-    QString matName = NULL;
-    QString parsedRef = assetRef.mid(0, assetRef.indexOf("#"));
-
     if (assetRef.isEmpty())
         return AssetTransferPtr();
 
@@ -541,6 +538,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 
     if (assetRef.contains(".dae#"))
     {
+        QString matName, parsedRef = assetRef.mid(0, assetRef.indexOf("#"));
         AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
 
         if (!provider)
@@ -549,19 +547,16 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
             return AssetTransferPtr();
         }
 
-        int indx = assetRef.indexOf('#');
-        matName = assetRef.mid(indx + 1, assetRef.length() - indx);
+        matName = assetRef.mid(assetRef.indexOf('#') + 1, assetRef.length() - assetRef.indexOf('#'));
 
         AssetTransferPtr transfer;
         transfer = AssetTransferPtr(new IAssetTransfer());
 
-        std::map<std::string, std::string> test = mappi[parsedRef.toStdString()];
-        std::string matInfo = test[matName.toStdString()];
+        std::map<std::string, std::string> meshMaterials = textureMap[parsedRef.toStdString()];
+        std::string matInfo = meshMaterials[matName.toStdString()];
 
         for (int i = 0; i < matInfo.length()-1; i++)
-        {
             transfer->rawAssetData.push_back(matInfo[i]);
-        }
 
         transfer->source.ref = assetRef;
         transfer->assetType = assetType;
@@ -570,7 +565,6 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         transfer->SetCachingBehavior(false, "");
         LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
         readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
-        //return(transfer);
     }
 
     // Check if we've already downloaded this asset before and it already is loaded in the system. We never reload an asset we've downloaded before, unless the 
@@ -917,6 +911,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
     transfer->asset->SetAssetTransfer(transfer);
 
     bool success = transfer->asset->LoadFromFileInMemory(&transfer->rawAssetData[0], transfer->rawAssetData.size());
+
     if (!success)
     {
         QString error("AssetAPI: Failed to load " + transfer->assetType + " '" + transfer->source.ref + "' from asset data.");

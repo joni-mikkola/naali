@@ -40,7 +40,7 @@ public:
     ~AssetAPI();
 
 public:
-    std::map<std::string, std::map<std::string, std::string> > mappi;
+    std::map<std::string, std::map<std::string, std::string> > textureMap;
     /// Registers a type factory for creating assets of the type governed by the factory.
     void RegisterAssetTypeFactory(AssetTypeFactoryPtr factory);
 

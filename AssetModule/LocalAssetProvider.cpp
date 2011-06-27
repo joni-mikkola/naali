@@ -231,23 +231,16 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         if (ref.contains(".dae#"))
         {
-
-            QString reffi = "local://";
-            reffi.append(ref);
-            int indx = reffi.indexOf('#');
-            QString matName = reffi.mid(indx + 1, reffi.length() - indx);
-            reffi.remove(indx, reffi.length() - indx);
-            std::map<std::string, std::string> test = framework->Asset()->mappi[reffi.toStdString()];
-
-            std::string matInfo = test[matName.toStdString()];
+            QString matRef = "local://" + ref;
+            QString matName = matRef.mid(matRef.indexOf('#') + 1, matRef.length() - matRef.indexOf('#'));
+            matRef.remove(matRef.indexOf('#'), matRef.length() - matRef.indexOf('#'));
+            std::map<std::string, std::string> meshMaterials = framework->Asset()->textureMap[matRef.toStdString()];
+            std::string matInfo = meshMaterials[matName.toStdString()];
 
             for (int i = 0; i < matInfo.length()-1; i++)
-            {
                 transfer->rawAssetData.push_back(matInfo[i]);
-            }
 
             success = true;
-
         }
         else
             success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);

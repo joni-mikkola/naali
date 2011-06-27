@@ -51,6 +51,7 @@ EC_ColladaMesh::EC_ColladaMesh(IModule* module) :
     meshMaterial.SetMetadata(&materialMetadata);
 
     static AttributeMetadata meshRefMetadata;
+
     AttributeMetadata::ButtonInfoList meshRefButtons;
     meshRefButtons.push_back(AttributeMetadata::ButtonInfo(meshRef.GetName(), "V", "View"));
     meshRefMetadata.buttons = meshRefButtons;
@@ -952,64 +953,10 @@ void EC_ColladaMesh::OnAttributeUpdated(IAttribute *attribute)
         if (!ViewEnabled())
             return;
 
-        QString parsedRef = "local://house.dae";
-
-        std::vector<u8> fileData;
-        OpenAssetImport import;
-        int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
-
-        std::ifstream::pos_type size;
-        char * memblock;
-
-        std::ifstream file ("/home/joni/QT/omafork/bin/scenes/TestScene_2/house.dae", std::ios::in|std::ios::binary|std::ios::ate);
-
-        if (file.is_open())
-        {
-            size = file.tellg();
-            memblock = new char [size];
-            file.seekg (0, std::ios::beg);
-            file.read (memblock, size);
-            file.close();
-        }
-
-        bool collada = import.convert((u8*)memblock, size, param);
-
-        // store all the material stuff into a map
-        framework_->Asset()->mappi[parsedRef.toStdString()] = import.matList;
-        std::map<std::string, std::string>::iterator iter;
-
-        //for ( iter = import.matList.begin(); iter !=  import.matList.end(); ++iter )
-        //    LogInfo(iter->second);
-
         if (meshRef.Get().ref.trimmed().isEmpty())
             LogDebug("Warning: Mesh \"" + this->parent_entity_->GetName().toStdString() + "\" mesh ref was set to an empty reference!");
 
         meshAsset->HandleAssetRefChange(&meshRef);
-
-        // Inserd materials into the scene
-        AssetReferenceList refList;
-        for (int i = 0; i < import.matNameList.size(); i++)
-        {
-            std::string parseString;
-            parseString.append("local://house.dae#");
-            parseString.append(import.matNameList[i]);
-            refList.Append(AssetReference(parseString));
-
-        }
-
-       // refList.Append(AssetReference("local://Jack_Body.material"));
-        AttributeChange::Type type = AttributeChange::Default;
-        meshMaterial.Set(refList, type);
-
-        /*AssetReferenceList refList;
-        refList.Append(AssetReference("local://Jack_Body.material"));
-
-        AttributeChange::Type type = AttributeChange::Default;
-        meshMaterial.Set(refList, type);
-
-        SetMaterial(0, QString("local://Jack_Body.material"));
-        ApplyMaterial();*/
-
     }
     //no need to check materials
     else if (attribute == &meshMaterial)
@@ -1067,6 +1014,24 @@ void EC_ColladaMesh::OnMeshAssetLoaded(AssetPtr asset)
         LogError("OnMeshAssetLoaded: Mesh asset load finished for asset \"" + asset->Name().toStdString() + "\", but downloaded asset was not of type OgreMeshAsset!");
         return;
     }
+    QString fileLocation = mesh->DiskSource();
+    std::vector<u8> fileData;
+    OpenAssetImport import;
+    LoadFileToVector(fileLocation.toStdString().c_str(), fileData);
+
+    bool collada = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH);
+    QString parsedRef = "local://" + fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+
+    // store all the material stuff into a map
+    framework_->Asset()->textureMap[parsedRef.toStdString()] = import.matList;
+
+    // Insert materials into the scene
+    AssetReferenceList refList;
+    // Loop through material list and insert each material separated with '#' from filename
+    for (int i = 0; i < import.matNameList.size(); i++)
+        refList.Append(AssetReference(parsedRef.toStdString() + "#" + import.matNameList[i]));
+
+    meshMaterial.Set(refList, AttributeChange::Default);
 
     QString ogreMeshName = mesh->Name();
     if (mesh)
