@@ -12,6 +12,7 @@
 #include "AssetReference.h"
 #include "Declare_EC.h"
 #include "AssetRefListener.h"
+#include "../OpenAssetImport/OpenAssetImport.h"
 
 #include <QVariant>
 #include <QVector3D>
@@ -144,6 +145,7 @@ class OGRE_MODULE_API EC_Mesh : public IComponent
     DECLARE_EC(EC_Mesh);
 
 public:
+    OpenAssetImport meshLoader;
     //! Transformation attribute is used to do some position, rotation and scale adjustments.
     Q_PROPERTY(Transform nodeTransformation READ getnodeTransformation WRITE setnodeTransformation);
     DEFINE_QPROPERTY_ATTRIBUTE(Transform, nodeTransformation);

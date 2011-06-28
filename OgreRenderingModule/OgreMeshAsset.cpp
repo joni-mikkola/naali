@@ -35,14 +35,7 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
     // Force an unload of this data first.
     Unload();
 
-
-
-    bool colladaFile;
     OpenAssetImport meshLoader;
-    int param = OpenAssetImport::LP_GENERATE_SINGLE_MESH;
-
-    // if returns false then assume data points to ogre mesh
-    colladaFile = meshLoader.convert(data_, numBytes, param, true);
 
     if (OGRE_THREAD_SUPPORT != 0)
     {
@@ -77,7 +70,8 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
     std::vector<u8> tempData(data_, data_ + numBytes);
     Ogre::MeshSerializer serializer;
 
-    if (colladaFile)
+    // if returns false then assume data points to ogre mesh
+    if (meshLoader.convert(data_, numBytes, OpenAssetImport::LP_GENERATE_SINGLE_MESH, true))
     {
         QString tempFilename = assetAPI->GenerateTemporaryNonexistingAssetFilename(Name());
         serializer.exportMesh(meshLoader.mMesh.get(), tempFilename.toStdString());
@@ -92,7 +86,7 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
     serializer.importMesh(stream, ogreMesh.getPointer()); // Note: importMesh *adds* submeshes to an existing mesh. It doesn't replace old ones.
 
     // Generate tangents to mesh
-    try
+    /*try
     {
         unsigned short src, dest;
         ///\bug Crashes if called for a mesh that has null or zero vertices in the vertex buffer, or null or zero indices in the index buffer.
@@ -103,7 +97,7 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
     
     
     // Generate extremity points to submeshes, 1 should be enough
-    /*try
+    try
     {
         for(uint i = 0; i < ogreMesh->getNumSubMeshes(); ++i)
         {
@@ -112,7 +106,7 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
                 smesh->generateExtremes(1);
         }
     }
-    catch (...) {}*/
+    catch (...) {}
         
     try
     {
@@ -126,7 +120,7 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
         LogError("Failed to create mesh " + this->Name().toStdString() + ": " + std::string(e.what()));
         Unload();
         return ASSET_LOAD_FAILED;
-    }
+    }*/
 
     //internal_name_ = SanitateAssetIdForOgre(id_);
     

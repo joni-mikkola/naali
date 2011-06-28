@@ -17,6 +17,7 @@
 #include <Ogre.h>
 #include <OgreTagPoint.h>
 
+
 #include "LoggingFunctions.h"
 DEFINE_POCO_LOGGING_FUNCTIONS("EC_Mesh")
 
@@ -1012,6 +1013,29 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         LogError("OnMeshAssetLoaded: Mesh asset load finished for asset \"" + asset->Name().toStdString() + "\", but downloaded asset was not of type OgreMeshAsset!");
         return;
     }
+
+    if (!asset->DiskSource().contains(".mesh"))
+    {
+        QString fileLocation = mesh->DiskSource();
+        std::vector<u8> fileData;
+        OpenAssetImport import;
+        LoadFileToVector(fileLocation.toStdString().c_str(), fileData);
+
+        bool collada = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH);
+        QString parsedRef = "local://" + fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+
+        // store all the material stuff into a map
+        framework_->Asset()->textureMap[parsedRef.toStdString()] = import.matList;
+
+        // Insert materials into the scene
+        AssetReferenceList refList;
+        // Loop through material list and insert each material separated with '#' from filename
+        for (int i = 0; i < import.matNameList.size(); i++)
+            refList.Append(AssetReference(parsedRef.toStdString() + "#" + import.matNameList[i]));
+
+        meshMaterial.Set(refList, AttributeChange::Replicate);
+    }
+
 
     QString ogreMeshName = mesh->Name();
     if (mesh)

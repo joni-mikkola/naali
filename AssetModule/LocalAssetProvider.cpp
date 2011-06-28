@@ -214,9 +214,8 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
 
-        if (path.isEmpty() && !ref.contains(".dae#"))
+        if (path.isEmpty() && !ref.contains("#"))
         {
-            AssetModule::LogInfo("TESKSTIÄ: " + ref.toStdString());
             QString reason = "Failed to find local asset with filename \"" + ref + "\"!";
 //            AssetModule::LogWarning(reason.toStdString());
             AssetModule::LogInfo("we're failing");
@@ -229,7 +228,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         bool success;
 
-        if (ref.contains(".dae#"))
+        if (ref.contains("#"))
         {
             QString matRef = "local://" + ref;
             QString matName = matRef.mid(matRef.indexOf('#') + 1, matRef.length() - matRef.indexOf('#'));

@@ -541,7 +541,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         return transfer;
     }
 
-    if (assetRef.contains(".dae#"))
+    if (assetRef.contains("#"))
     {
         QString matName, parsedRef = assetRef.mid(0, assetRef.indexOf("#"));
         AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
@@ -559,6 +559,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 
         std::map<std::string, std::string> meshMaterials = textureMap[parsedRef.toStdString()];
         std::string matInfo = meshMaterials[matName.toStdString()];
+        LogInfo(matInfo);
 
         for (int i = 0; i < matInfo.length()-1; i++)
             transfer->rawAssetData.push_back(matInfo[i]);
