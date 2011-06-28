@@ -38,8 +38,8 @@
 #undef SAFE_DELETE_ARRAY
 
 #include <d3d9.h>
-#include <OgreD3D9HardwarePixelBuffer.h>
-#include <OgreD3D9RenderWindow.h>
+#include <RenderSystems/Direct3D9/OgreD3D9HardwarePixelBuffer.h>
+#include <RenderSystems/Direct3D9/OgreD3D9RenderWindow.h>
 #endif
 
 #include <QDesktopWidget>
@@ -190,12 +190,14 @@ namespace OgreRenderer
 
         // Load plugins
         app->SetSplashMessage(baseSplashMsg + " [LOADING PLUGINS]");
-        LoadPlugins(plugins_filename_);
+        QStringList loadedPlugins = LoadPlugins(plugins_filename_);
 
 #ifdef _WINDOWS
         // WIN default to DirectX
         rendersystem_name = framework_->GetDefaultConfig().DeclareSetting<std::string>(
             "OgreRenderer", "rendersystem", "Direct3D9 Rendering Subsystem");
+        if (framework_->IsHeadless() && (loadedPlugins.contains("RenderSystem_NULL", Qt::CaseInsensitive) || loadedPlugins.contains("RenderSystem_NULL_d", Qt::CaseInsensitive)))
+            rendersystem_name = "NULL Rendering Subsystem";
 #else
         // X11/MAC default to OpenGL
         rendersystem_name = "OpenGL Rendering Subsystem";
@@ -270,8 +272,10 @@ namespace OgreRenderer
     {
     }
 
-    void Renderer::LoadPlugins(const std::string& plugin_filename)
+    QStringList Renderer::LoadPlugins(const std::string& plugin_filename)
     {
+        QStringList loadedPlugins;
+
         Ogre::ConfigFile file;
         try
         {
@@ -280,7 +284,7 @@ namespace OgreRenderer
         catch (Ogre::Exception&)
         {
             OgreRenderingModule::LogError("Could not load Ogre plugins configuration file");
-            return;
+            return loadedPlugins;
         }
 
         Ogre::String plugin_dir = file.getSetting("PluginFolder");
@@ -304,12 +308,15 @@ namespace OgreRenderer
             {
                 root_->loadPlugin(plugin_dir + plugins[i]);
                 OgreRenderingModule::LogInfo("- " + plugins[i] + " loaded");
+                loadedPlugins.append(QString::fromStdString(plugins[i]));
             }
             catch (Ogre::Exception&)
             {
                 OgreRenderingModule::LogError("Plugin " + plugins[i] + " failed to load");
             }
         }
+
+        return loadedPlugins;
     }
 
     void Renderer::SetupResources()

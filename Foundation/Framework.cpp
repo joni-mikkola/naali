@@ -81,8 +81,8 @@ namespace Foundation
         ParseProgramOptions();
 
         /// \note ApiVersionInfo major becomes 1.0 when we stop breaking the API.
-        api_versioninfo_ = new ApiVersionInfo(this, 0, 7, 0, 0);
-        application_versioninfo_ = new ApplicationVersionInfo(this, 1, 0, 7, 0, "realXtend", "Tundra");
+        api_versioninfo_ = new ApiVersionInfo(this, 0, 8, 0, 0);
+        application_versioninfo_ = new ApplicationVersionInfo(this, 1, 0, 8, 0, "realXtend", "Tundra");
 
         if (commandLineVariables.count("help")) 
         {
@@ -175,6 +175,7 @@ namespace Foundation
             RegisterDynamicObject("asset", asset);
             RegisterDynamicObject("audio", audio);
             RegisterDynamicObject("debug", debug);
+            RegisterDynamicObject("sceneapi", scene);
             RegisterDynamicObject("devices", devices);
             RegisterDynamicObject("application", application);
             RegisterDynamicObject("apiversion", api_versioninfo_);

@@ -16,7 +16,7 @@ del build\telepathy-farsight.dll
 del build\telepathy-glib.dll
 
 :: Qt stuff
-del build\QtDeclarative*.dll
+:: del build\QtDeclarative*.dll
 del build\QtMultimedia*.dll
 del build\QtXmlPatterns*.dll
 del build\QtTest*.dll
@@ -45,6 +45,7 @@ del build\data\avatar_*.llm
 del build\data\gabble.manager
 del build\data\assets\dummy.txt
 del build\lvm.sh
+del build\scene.txml
 
 :: Installers we dont need in .msi
 ::del build\dxwebsetup.exe

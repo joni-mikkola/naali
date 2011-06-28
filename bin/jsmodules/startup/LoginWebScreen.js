@@ -164,6 +164,11 @@ var BrowserManager = Class.extend
         
         ui.AddAction.connect(this.addTool);
         ui.OpenUrl.connect(this.openUrl);
+        
+        //menu entry to show/hide browser ui
+        var mainwin = ui.MainWindow();
+        var hideshowact = mainwin.AddMenuAction("&View", "Hide/Show Browser UI");
+        hideshowact.triggered.connect(this.toggleVisible);
     },
     
     start: function()
@@ -193,6 +198,10 @@ var BrowserManager = Class.extend
     setVisible: function(visible)
     {
         this.browser.visible = visible;
+    },
+
+    toggleVisible: function() {
+        p_.browser.visible = !p_.browser.visible;
     },
 
     getCurrentWidget: function()

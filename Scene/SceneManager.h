@@ -6,6 +6,7 @@
 #include "SceneFwd.h"
 #include "AttributeChangeType.h"
 #include "EntityAction.h"
+#include "ChangeRequest.h"
 
 #include <QObject>
 #include <QVariant>
@@ -182,8 +183,11 @@ namespace Scene
         QByteArray GetEntityXml(Scene::Entity *entity);
 
         void LoadSceneXMLRaw(const QString &filename, bool clearScene, bool useEntityIDsFromFile, AttributeChange::Type change) { LoadSceneXML(filename.toStdString(), clearScene, useEntityIDsFromFile, change); }
+
         void EmitEntityCreated(Entity *entity, AttributeChange::Type change = AttributeChange::Default);
         void EmitEntityCreatedRaw(QObject *entity, AttributeChange::Type change = AttributeChange::Default);
+
+        bool AllowModifyEntity(Entity *entity);
 
         void RemoveEntityRaw(int entityid, AttributeChange::Type change = AttributeChange::Default) { RemoveEntity(entityid, change); }
 
@@ -451,6 +455,11 @@ namespace Scene
 
         //! Signal when the whole scene is cleared
         void SceneCleared(Scene::SceneManager* scene);
+
+        //permission hooks -- signals that are emitted before attribute modification, can be used to prevent them
+        
+        //! Emitted when an entity is about to be modified:
+        void AboutToModifyEntity(ChangeRequest* req, Scene::Entity* entity);
 
     private:
         Q_DISABLE_COPY(SceneManager);

@@ -85,13 +85,13 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
         // propably to request more postprocessing than we do in this example.
 
         scene = importer.ReadFileFromMemory(fileData, numBytes, 0
-                                            // aiProcess_SplitLargeMeshes
+                                            | aiProcess_SplitLargeMeshes
                                             //  | aiProcess_MakeLeftHanded
                                             // | aiProcess_Triangulate
                                             | aiProcess_FlipUVs
                                             //   | aiProcess_FindInvalidData
                                             //  | aiProcess_FlipWindingOrder
-                                            //| aiProcess_FixInfacingNormals
+                                            | aiProcess_FixInfacingNormals
                                             | aiProcess_TransformUVCoords
                                             //   | aiProcess_GenUVCoords
                                             | aiProcess_JoinIdenticalVertices
@@ -178,7 +178,7 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                         {
                                 // Automatic
                                 Ogre::VertexDeclaration* newDcl =
-                sm->vertexData->vertexDeclaration->getAutoOrganisedDeclaration(mMesh->hasSkeleton(), mMesh->hasVertexAnimation());
+                sm->vertexData->vertexDeclaration->getAutoOrganisedDeclaration(mMesh->hasSkeleton(), mMesh->hasVertexAnimation(), true);
                                 if (*newDcl != *(sm->vertexData->vertexDeclaration))
                                 {
                                         // Usages don't matter here since we're only exporting

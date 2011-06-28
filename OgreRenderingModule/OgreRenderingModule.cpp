@@ -26,6 +26,7 @@
 #include "ConfigurationManager.h"
 #include "EventManager.h"
 #include "AssetAPI.h"
+#include "AssetCache.h"
 #include "GenericAssetFactory.h"
 #include "OgreMeshAsset.h"
 #include "OgreParticleAsset.h"
@@ -41,6 +42,7 @@
 namespace OgreRenderer
 {
     std::string OgreRenderingModule::type_name_static_ = "OgreRendering";
+    std::string OgreRenderingModule::CACHE_RESOURCE_GROUP = "CACHED_ASSETS_GROUP";
 
     OgreRenderingModule::OgreRenderingModule() :
         IModule(type_name_static_),
@@ -103,8 +105,12 @@ namespace OgreRenderer
         renderer_->Initialize();
 
         framework_->GetServiceManager()->RegisterService(Service::ST_Renderer, renderer_);
-
         framework_->RegisterDynamicObject("renderer", renderer_.get());
+
+        // Add our asset cache file directory as its own resource group to ogre to support threaded loading.
+        std::string cacheResourceDir = GetFramework()->Asset()->GetAssetCache()->GetCacheDirectory().toStdString();
+        if (!Ogre::ResourceGroupManager::getSingleton().resourceLocationExists(cacheResourceDir, CACHE_RESOURCE_GROUP))
+            Ogre::ResourceGroupManager::getSingleton().addResourceLocation(cacheResourceDir, "FileSystem", CACHE_RESOURCE_GROUP);
     }
 
     void OgreRenderingModule::PostInitialize()

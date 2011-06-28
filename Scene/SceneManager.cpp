@@ -11,6 +11,7 @@
 #include "IComponent.h"
 #include "IAttribute.h"
 #include "EC_Name.h"
+#include "ChangeRequest.h"
 
 #include "Framework.h"
 #include "ComponentManager.h"
@@ -365,6 +366,14 @@ namespace Scene
     void SceneManager::EmitActionTriggered(Scene::Entity *entity, const QString &action, const QStringList &params, EntityAction::ExecutionType type)
     {
         emit ActionTriggered(entity, action, params, type);
+    }
+
+    //before-the-fact counterparts for the modification signals above, for permission checks etc.
+    bool SceneManager::AllowModifyEntity(Scene::Entity *entity)
+    {
+        ChangeRequest req;
+        emit AboutToModifyEntity(&req, entity);
+        return req.allowed;
     }
 
     QVariantList SceneManager::GetEntityIdsWithComponent(const QString &type_name) const

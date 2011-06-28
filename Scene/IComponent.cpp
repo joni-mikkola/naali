@@ -16,6 +16,7 @@
 #include "SceneManager.h"
 #include "EventManager.h"
 
+
 #include <QDomDocument>
 
 #include <kNet.h>
@@ -208,6 +209,7 @@ void IComponent::EmitAttributeChanged(IAttribute* attribute, AttributeChange::Ty
         scene->EmitAttributeChanged(this, attribute, change);
     
     // Trigger internal signal
+
     emit AttributeChanged(attribute, change);
 }
 

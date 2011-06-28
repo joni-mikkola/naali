@@ -40,6 +40,10 @@ endif ()
 
 use_package (OPENJPEG)
 
+if(TUNDRA_QT_DECLARATIVE_ENABLED)
+    use_package_qtdeclarative()
+endif()
+
 use_modules (RexLogicModule Core Foundation Interfaces Scene OgreRenderingModule AssetModule AvatarModule RexCommon
     HttpUtilities RpcUtilities ProtocolUtilities ProtocolModuleOpenSim ProtocolModuleTaiga EnvironmentModule
     Input Asset Audio Console)
@@ -76,6 +80,11 @@ LinkEntityComponent(EntityComponents/EC_PlanarMirror EC_PlanarMirror)
 LinkEntityComponent(EntityComponents/EC_ProximityTrigger EC_ProximityTrigger)
 LinkEntityComponent(EntityComponents/EC_WebView EC_WebView)
 LinkEntityComponent(EntityComponents/EC_LaserPointer EC_LaserPointer)
+LinkEntityComponent(EntityComponents/EC_Sittable EC_Sittable)
+
+if(TUNDRA_QT_DECLARATIVE_ENABLED)
+    LinkEntityComponent(EntityComponents/EC_QML EC_QML)
+endif()
 
 link_modules (Core Foundation Interfaces Scene OgreRenderingModule AssetModule AvatarModule RexCommon
     HttpUtilities RpcUtilities ProtocolUtilities ProtocolModuleOpenSim ProtocolModuleTaiga EnvironmentModule
@@ -87,6 +96,10 @@ endif ()
 
 link_ogre()
 link_package (OPENJPEG)
+if(TUNDRA_QT_DECLARATIVE_ENABLED)
+    link_package_qtdeclarative()
+endif()
+
 
 SetupCompileFlagsWithPCH()
 CopyModuleXMLFile()

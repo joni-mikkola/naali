@@ -89,6 +89,7 @@ public slots:
     void SetRefreshRate(int refresh_per_second);
     void SetSubmesh(uint submesh);
     void SetSubmeshes(const QList<uint> &submeshes);
+    void SetSelfIllumination(bool illuminating);
 
     QWidget *GetWidget() { return widget_; }
     const int GetRefreshRate() { return update_interval_msec_; }
