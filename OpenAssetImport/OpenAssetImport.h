@@ -42,9 +42,10 @@ public:
 
     // customAnimationName is only applied if the skeleton only has one animation
 
-    bool convert(const unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat = false);
+    bool convert(const unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat = false, std::string addr = "");
     bool genMaterials;
     Ogre::MeshPtr mMesh;
+    std::string addr;
     std::map<std::string, std::string> matList;
     std::vector<std::string> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }

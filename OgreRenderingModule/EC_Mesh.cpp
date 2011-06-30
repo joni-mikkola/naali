@@ -1005,6 +1005,17 @@ void EC_Mesh::OnComponentRemoved(IComponent* component, AttributeChange::Type ch
         SetPlaceable(ComponentPtr());
 }
 
+std::string fixAddr(std::string addrString)
+{
+    addrString.replace(0, 7, "http://");
+    ReplaceCharInplace(addrString, '_', '/');
+    size_t tmp = addrString.find_last_of('/')+1;
+    addrString.erase(tmp, addrString.length() - tmp);
+    //LogInfo(addrString);
+    return addrString;
+}
+
+
 void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 {
     OgreMeshAsset *mesh = dynamic_cast<OgreMeshAsset*>(asset.get());
@@ -1014,28 +1025,39 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         return;
     }
 
-    if (!asset->DiskSource().contains(".mesh"))
+    if (!asset->DiskSource().endsWith(".mesh"))
     {
         QString fileLocation = mesh->DiskSource();
         std::vector<u8> fileData;
         OpenAssetImport import;
         LoadFileToVector(fileLocation.toStdString().c_str(), fileData);
 
-        bool collada = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH);
-        QString parsedRef = "local://" + fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+        QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+        bool success;
 
-        // store all the material stuff into a map
+        if (parsedRef.startsWith("http"))
+            success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false, fixAddr(parsedRef.toStdString()));
+        else
+            success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false);
+
+        if (!success)
+        {
+            LogError("AssImp -> OgreMesh conversion failed for file " + fileLocation.toStdString());
+            return;
+        }
+
+        // Store all the material stuff into a map
         framework_->Asset()->textureMap[parsedRef.toStdString()] = import.matList;
 
-        // Insert materials into the scene
+        // Create reference list for materials which to add to the scene
         AssetReferenceList refList;
+
         // Loop through material list and insert each material separated with '#' from filename
         for (int i = 0; i < import.matNameList.size(); i++)
             refList.Append(AssetReference(parsedRef.toStdString() + "#" + import.matNameList[i]));
 
-        meshMaterial.Set(refList, AttributeChange::Replicate);
+        meshMaterial.Set(refList, AttributeChange::Default);
     }
-
 
     QString ogreMeshName = mesh->Name();
     if (mesh)

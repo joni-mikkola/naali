@@ -37,6 +37,12 @@ Ogre::String toString(const aiColor4D& colour)
 
 int OpenAssetImport::msBoneCount = 0;
 
+void fixRef(std::string &matRef, std::string addRef)
+{
+    size_t indx = matRef.find("texture ", 0);
+    matRef.replace(indx+8, 0, addRef);
+}
+
 OpenAssetImport::OpenAssetImport()
 {
     //mSkeletonRootNode = NULL;
@@ -46,7 +52,7 @@ OpenAssetImport::~OpenAssetImport()
 {
 }
 
-bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat)
+bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat, std::string addr)
 {
     dummyMatCount = 0;
     mLoaderParams = loaderParams;
@@ -55,7 +61,7 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
     {
         mNodeDerivedTransformByName.clear();
     }
-
+    
     //Ogre::String extension;
     //Ogre::StringUtil::splitFullFilename(filename, mBasename, extension, mPath);
     //mBasename = mBasename + "_" + extension;
@@ -88,7 +94,7 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                                         // | aiProcess_SplitLargeMeshes
                                         //aiProcess_MakeLeftHanded
                                         // | aiProcess_Triangulate
-                                        //| aiProcess_FlipUVs
+                                        | aiProcess_FlipUVs
                                         | aiProcess_FindInvalidData
                                         //  | aiProcess_FlipWindingOrder
                                         | aiProcess_FixInfacingNormals
@@ -225,10 +231,13 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                     //set culling to none, so "invisible" faces can be seen
                     materiaali->setCullingMode(Ogre::CULL_NONE);
                     ms.queueForExport(materialPtr, true, false);
+
                     exportedNames.push_back(matName);
                     std::string testString = ms.getQueuedAsString();
 
-                    matList[sm->getMaterialName() + ".material"] = ms.getQueuedAsString();
+                    std::string testt = ms.getQueuedAsString();
+                    fixRef(testt, addr);
+                    matList[sm->getMaterialName() + ".material"] = testt;
                     matNameList.push_back(sm->getMaterialName() + ".material");
                     ms.clearQueue();
 

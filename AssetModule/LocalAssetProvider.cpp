@@ -230,14 +230,14 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         if (ref.contains("#"))
         {
-            QString matRef = "local://" + ref;
+            QString matRef = ref;
             QString matName = matRef.mid(matRef.indexOf('#') + 1, matRef.length() - matRef.indexOf('#'));
             matRef.remove(matRef.indexOf('#'), matRef.length() - matRef.indexOf('#'));
             std::map<std::string, std::string> meshMaterials = framework->Asset()->textureMap[matRef.toStdString()];
             std::string matInfo = meshMaterials[matName.toStdString()];
-
-            for (int i = 0; i < matInfo.length()-1; i++)
-                transfer->rawAssetData.push_back(matInfo[i]);
+            if (matInfo.empty() == false)
+                for (int i = 0; i < matInfo.length()-1; i++)
+                    transfer->rawAssetData.push_back(matInfo[i]);
 
             success = true;
         }

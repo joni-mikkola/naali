@@ -36,8 +36,12 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
     Unload();
 
     OpenAssetImport meshLoader;
+    bool isCollada;
 
-    if (OGRE_THREAD_SUPPORT != 0)
+    std::vector<u8> tempData(data_, data_ + numBytes);
+    Ogre::MeshSerializer serializer;
+
+    if (OGRE_THREAD_SUPPORT != 0 && !assetAPI->GetAssetCache()->GetDiskSource(QUrl(Name())).contains("http"))
     {
         // We can only do threaded loading from disk, and not any disk location but only from asset cache.
         // local:// refs will return empty string here and those will fall back to the non-threaded loading.
@@ -53,8 +57,16 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
             return ASSET_LOAD_PROCESSING;
         }
     }
+    else
+    {
+        tempData.clear();
+        LoadFileToVector(assetAPI->GetAssetCache()->GetDiskSource(QUrl(Name())).toStdString().c_str(), tempData);
+        numBytes = tempData.size();
+        data_ = (u8*)&tempData[0];
+    }
 
-
+    isCollada = meshLoader.convert(data_, numBytes, OpenAssetImport::LP_GENERATE_SINGLE_MESH, true);
+    
     if (ogreMesh.isNull())
     {
         ogreMesh = Ogre::MeshManager::getSingleton().createManual(
@@ -67,11 +79,8 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
         ogreMesh->setAutoBuildEdgeLists(false);
     }
 
-    std::vector<u8> tempData(data_, data_ + numBytes);
-    Ogre::MeshSerializer serializer;
-
     // if returns false then assume data points to ogre mesh
-    if (meshLoader.convert(data_, numBytes, OpenAssetImport::LP_GENERATE_SINGLE_MESH, true))
+    if (isCollada)
     {
         QString tempFilename = assetAPI->GenerateTemporaryNonexistingAssetFilename(Name());
         serializer.exportMesh(meshLoader.mMesh.get(), tempFilename.toStdString());
@@ -85,42 +94,47 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
 #include "EnableMemoryLeakCheck.h"
     serializer.importMesh(stream, ogreMesh.getPointer()); // Note: importMesh *adds* submeshes to an existing mesh. It doesn't replace old ones.
 
-    // Generate tangents to mesh
-    /*try
+
+    if (!isCollada)
     {
-        unsigned short src, dest;
-        ///\bug Crashes if called for a mesh that has null or zero vertices in the vertex buffer, or null or zero indices in the index buffer.
-        if (!ogreMesh->suggestTangentVectorBuildParams(Ogre::VES_TANGENT, src, dest))
-            ogreMesh->buildTangentVectors(Ogre::VES_TANGENT, src, dest);
-    }
-    catch (...) {}
-    
-    
-    // Generate extremity points to submeshes, 1 should be enough
-    try
-    {
-        for(uint i = 0; i < ogreMesh->getNumSubMeshes(); ++i)
+        // Generate tangents to mesh
+        try
         {
-            Ogre::SubMesh *smesh = ogreMesh->getSubMesh(i);
-            if (smesh)
-                smesh->generateExtremes(1);
+            unsigned short src, dest;
+            ///\bug Crashes if called for a mesh that has null or zero vertices in the vertex buffer, or null or zero indices in the index buffer.
+            if (!ogreMesh->suggestTangentVectorBuildParams(Ogre::VES_TANGENT, src, dest))
+                ogreMesh->buildTangentVectors(Ogre::VES_TANGENT, src, dest);
+        }
+        catch (...) {}
+
+
+        // Generate extremity points to submeshes, 1 should be enough
+        try
+        {
+            for(uint i = 0; i < ogreMesh->getNumSubMeshes(); ++i)
+            {
+                Ogre::SubMesh *smesh = ogreMesh->getSubMesh(i);
+                if (smesh)
+                    smesh->generateExtremes(1);
+            }
+        }
+        catch (...) {}
+
+
+        try
+        {
+            // Assign default materials that won't complain
+            SetDefaultMaterial();
+            // Set asset references the mesh has
+            //ResetReferences();
+        }
+        catch (Ogre::Exception &e)
+        {
+            LogError("Failed to create mesh " + this->Name().toStdString() + ": " + std::string(e.what()));
+            Unload();
+            return ASSET_LOAD_FAILED;
         }
     }
-    catch (...) {}
-        
-    try
-    {
-        // Assign default materials that won't complain
-        SetDefaultMaterial();
-        // Set asset references the mesh has
-        //ResetReferences();
-    }
-    catch (Ogre::Exception &e)
-    {
-        LogError("Failed to create mesh " + this->Name().toStdString() + ": " + std::string(e.what()));
-        Unload();
-        return ASSET_LOAD_FAILED;
-    }*/
 
     //internal_name_ = SanitateAssetIdForOgre(id_);
     

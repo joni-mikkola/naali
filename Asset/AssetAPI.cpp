@@ -544,6 +544,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
     if (assetRef.contains("#"))
     {
         QString matName, parsedRef = assetRef.mid(0, assetRef.indexOf("#"));
+        
         AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
 
         if (!provider)
@@ -554,23 +555,27 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 
         matName = assetRef.mid(assetRef.indexOf('#') + 1, assetRef.length() - assetRef.indexOf('#'));
 
-        AssetTransferPtr transfer;
-        transfer = AssetTransferPtr(new IAssetTransfer());
-
         std::map<std::string, std::string> meshMaterials = textureMap[parsedRef.toStdString()];
         std::string matInfo = meshMaterials[matName.toStdString()];
-        LogInfo(matInfo);
 
-        for (int i = 0; i < matInfo.length()-1; i++)
-            transfer->rawAssetData.push_back(matInfo[i]);
+        if (matInfo.empty() == false)
+        {
+            AssetTransferPtr transfer;
+            transfer = AssetTransferPtr(new IAssetTransfer());
 
-        transfer->source.ref = assetRef;
-        transfer->assetType = assetType;
-        transfer->storage = AssetStorageWeakPtr(); // Note: Unfortunately when we load an asset from cache, we don't get the information about which storage it's supposed to come from.
-        transfer->provider = provider;
-        transfer->SetCachingBehavior(false, "");
-        LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
-        readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
+            LogInfo(matInfo);
+
+            for (int i = 0; i < matInfo.length()-1; i++)
+                transfer->rawAssetData.push_back(matInfo[i]);
+
+            transfer->source.ref = assetRef;
+            transfer->assetType = assetType;
+            transfer->storage = AssetStorageWeakPtr(); // Note: Unfortunately when we load an asset from cache, we don't get the information about which storage it's supposed to come from.
+            transfer->provider = provider;
+            transfer->SetCachingBehavior(false, "");
+            LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
+            readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
+        }
     }
 
     // Check if we've already downloaded this asset before and it already is loaded in the system. We never reload an asset we've downloaded before, unless the 

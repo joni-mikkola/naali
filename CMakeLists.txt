@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 2.4)
 #boost filesystem version used
 add_definitions(-DBOOST_FILESYSTEM_VERSION=2)
 
-# The AddEntityComponent macro adds the static EC lib from the given sourceFolder directory to the build.
+# The AddEntityComponen t macro adds the static EC lib from the given sourceFolder directory to the build.
 # The componentName must be the name of the EC that will be added. E.g. AddEntityComponent(EntityComponents/EC_Highlight EC_Highlight)
 # Use this macro when adding ECs to the build, since this macro tracks the set of ECs that are added, so that the individual Naali
 # modules get #defines in C++ code for each EC that is present. This allows conditionally excluding ECs from the build.
