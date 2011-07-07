@@ -65,7 +65,7 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
         data_ = (u8*)&tempData[0];
     }
 
-    isCollada = meshLoader.convert(data_, numBytes, OpenAssetImport::LP_GENERATE_SINGLE_MESH, true);
+    isCollada = meshLoader.convert((unsigned char*)data_, numBytes, OpenAssetImport::LP_GENERATE_SINGLE_MESH, true);
     
     if (ogreMesh.isNull())
     {

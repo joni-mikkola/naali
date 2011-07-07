@@ -190,15 +190,13 @@ AssetUploadTransferPtr LocalAssetProvider::UploadAssetFromFileInMemory(const u8 
 
 void LocalAssetProvider::CompletePendingFileDownloads()
 {
-    bool daeFile = false;
     while(pendingDownloads.size() > 0)
     {
-        daeFile = false;
         AssetTransferPtr transfer = pendingDownloads.back();
         pendingDownloads.pop_back();
 
         QString ref = transfer->source.ref;
-        AssetModule::LogInfo(transfer->source.ref.toStdString());
+        //AssetModule::LogInfo(transfer->source.ref.toStdString());
 //        AssetModule::LogDebug("New local asset request: " + ref.toStdString());
 
         // Strip file: trims asset provider id (f.ex. 'file://') and potential mesh name inside the file (everything after last slash)
@@ -228,19 +226,8 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         bool success;
 
-        if (ref.contains("#"))
-        {
-            QString matRef = ref;
-            QString matName = matRef.mid(matRef.indexOf('#') + 1, matRef.length() - matRef.indexOf('#'));
-            matRef.remove(matRef.indexOf('#'), matRef.length() - matRef.indexOf('#'));
-            std::map<std::string, std::string> meshMaterials = framework->Asset()->textureMap[matRef.toStdString()];
-            std::string matInfo = meshMaterials[matName.toStdString()];
-            if (matInfo.empty() == false)
-                for (int i = 0; i < matInfo.length()-1; i++)
-                    transfer->rawAssetData.push_back(matInfo[i]);
-
-            success = true;
-        }
+        if (ref.contains("#")) 
+            success = LoadMaterialInfo(ref, transfer->rawAssetData, framework->Asset()->textureMap);
         else
             success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
 
@@ -251,6 +238,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
             framework->Asset()->AssetTransferFailed(transfer.get(), reason);
             continue;
         }
+
         
         // Tell the Asset API that this asset should not be cached into the asset cache, and instead the original filename should be used
         // as a disk source, rather than generating a cache file for it.

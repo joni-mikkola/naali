@@ -525,26 +525,11 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
     assetRef = LookupAssetRefToStorage(assetRef);
 
 
-    // To optimize, we first check if there is an outstanding request to the given asset. If so, we return that request. In effect, we never
-    // have multiple transfers running to the same asset. (Important: This must occur before checking the assets map for whether we already have the asset in memory, since
-    // an asset will be stored in the AssetMap when it has been downloaded, but it might not yet have all its dependencies loaded).
-    AssetTransferMap::iterator iter = currentTransfers.find(assetRef);
-    if (iter != currentTransfers.end())
-    {
-        AssetTransferPtr transfer = iter->second;
-
-        // Check that the requested types were the same. Don't know what to do if they differ, so only print a warning if so.
-        if (!assetType.isEmpty() && !transfer->assetType.isEmpty() && assetType != transfer->assetType)
-            LogWarning("AssetAPI::RequestAsset: Asset \"" + assetRef + "\" first requested by type " + transfer->assetType + 
-            ", but now requested by type " + assetType + ".");
-
-        return transfer;
-    }
-
+   /* {
     if (assetRef.contains("#"))
     {
         QString matName, parsedRef = assetRef.mid(0, assetRef.indexOf("#"));
-        
+
         AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
 
         if (!provider)
@@ -555,8 +540,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 
         matName = assetRef.mid(assetRef.indexOf('#') + 1, assetRef.length() - assetRef.indexOf('#'));
 
-        std::map<std::string, std::string> meshMaterials = textureMap[parsedRef.toStdString()];
-        std::string matInfo = meshMaterials[matName.toStdString()];
+        std::string matInfo = textureMap[matName.toStdString()];
 
         if (matInfo.empty() == false)
         {
@@ -576,6 +560,23 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
             LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
             readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
         }
+    }
+    }*/
+
+    // To optimize, we first check if there is an outstanding request to the given asset. If so, we return that request. In effect, we never
+    // have multiple transfers running to the same asset. (Important: This must occur before checking the assets map for whether we already have the asset in memory, since
+    // an asset will be stored in the AssetMap when it has been downloaded, but it might not yet have all its dependencies loaded).
+    AssetTransferMap::iterator iter = currentTransfers.find(assetRef);
+    if (iter != currentTransfers.end())
+    {
+        AssetTransferPtr transfer = iter->second;
+
+        // Check that the requested types were the same. Don't know what to do if they differ, so only print a warning if so.
+        if (!assetType.isEmpty() && !transfer->assetType.isEmpty() && assetType != transfer->assetType)
+            LogWarning("AssetAPI::RequestAsset: Asset \"" + assetRef + "\" first requested by type " + transfer->assetType + 
+            ", but now requested by type " + assetType + ".");
+
+        return transfer;
     }
 
     // Check if we've already downloaded this asset before and it already is loaded in the system. We never reload an asset we've downloaded before, unless the 
@@ -897,7 +898,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
     // We should be tracking this transfer in an internal data structure.
     AssetTransferMap::iterator iter = currentTransfers.find(transfer->source.ref);
     //DAE CHECK
-    if (iter == currentTransfers.end() && !transfer->source.ref.contains(".dae#"))
+    if (iter == currentTransfers.end() && !transfer->source.ref.contains("#"))
         LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
 
     // We've finished an asset data download, now create an actual instance of an asset of that type.
@@ -921,7 +922,9 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
     transfer->asset->SetAssetProvider(transfer->provider.lock());
     transfer->asset->SetAssetTransfer(transfer);
 
-    AssetLoadState loadState = transfer->asset->LoadFromFileInMemory(&transfer->rawAssetData[0], transfer->rawAssetData.size());
+    AssetLoadState loadState;
+    
+    loadState = transfer->asset->LoadFromFileInMemory(&transfer->rawAssetData[0], transfer->rawAssetData.size());
 
     // If the asset is still processing the load it will itself invoke the callback,
     // otherwise do it here for completed or failed asset loads.
@@ -935,7 +938,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
     AssetTransferMap::iterator iter = currentTransfers.find(assetRef);
     if (iter == currentTransfers.end())
     {
-        if (!assetRef.contains(".dae#"))
+        if (!assetRef.contains("#"))
             LogError("Could not find corresponding asset transfer for completed asset load " + assetRef);
         return;
     }
@@ -951,7 +954,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
     {
         // Add the loaded asset to the internal asset map
         AssetMap::iterator iter2 = assets.find(transfer->source.ref);
-        if (iter2 != assets.end() && !transfer->source.ref.contains(".dae#"))
+        if (iter2 != assets.end() && !transfer->source.ref.contains("#"))
         {
             AssetPtr existing = iter2->second;
             LogWarning("AssetAPI: Overwriting a previously downloaded asset \"" + existing->Name() + "\", type \"" + existing->Type() + "\" with asset of same name!");
@@ -959,7 +962,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
         assets[transfer->source.ref] = transfer->asset;
 
         // Add file watcher to the disk source
-        if (diskSourceChangeWatcher && !transfer->asset->DiskSource().isEmpty() && !transfer->source.ref.contains(".dae#"))
+        if (diskSourceChangeWatcher && !transfer->asset->DiskSource().isEmpty() && !transfer->source.ref.contains("#"))
             diskSourceChangeWatcher->addPath(transfer->asset->DiskSource());
 
         // Tell everyone a new asset was loaded
@@ -975,7 +978,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
         if (NumPendingDependencies(transfer->asset) == 0)
             AssetDependenciesCompleted(transfer);
     }
-    else if (result == ASSET_LOAD_FAILED)
+    else if (result == ASSET_LOAD_FAILED && !transfer->source.ref.contains("#"))
     {
         QString error("AssetAPI: Failed to load " + transfer->assetType + " '" + transfer->source.ref + "' from asset data.");
         transfer->asset->HandleLoadError(error);
@@ -1058,7 +1061,7 @@ void AssetAPI::AssetDependenciesCompleted(AssetTransferPtr transfer)
     if (iter != currentTransfers.end())
         currentTransfers.erase(iter);
     else // Even if we didn't know about this transfer, just print a warning and continue execution here nevertheless.
-        if (!transfer->source.ref.contains(".dae#"))
+        if (!transfer->source.ref.contains("#"))
             LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
 
     if (transfer->rawAssetData.size() == 0)
@@ -1213,6 +1216,26 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
     }
 }
 
+bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<std::string, std::string> &textureMap)
+{
+    // Read material data to matInfo
+
+    std::map<std::string, std::string>::iterator it;
+    it = textureMap.find(ref.toStdString());
+
+    std::string matInfo = it->second;
+
+    if (matInfo.empty() == false)
+    {
+        for (int i = 0; i < matInfo.length()-1; i++)
+            dst.push_back(matInfo[i]);
+        return true;
+    }
+
+    LogInfo("Failed to find material for " + ref.toStdString());
+    return false;
+}
+
 bool LoadFileToVector(const char *filename, std::vector<u8> &dst)
 {
     FILE *handle = fopen(filename, "rb");
@@ -1269,7 +1292,7 @@ QString GetResourceTypeFromResourceFileName(const char *name)
     if (IsFileOfType(file, textureFileTypes, NUMELEMS(textureFileTypes)))
         return "Texture";
 
-    const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf", 
+    const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
         ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
         ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
         ".ply", ".cob", ".scn" };

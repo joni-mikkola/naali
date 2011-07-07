@@ -14,6 +14,8 @@
 
 class QFileSystemWatcher;
 
+bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<std::string, std::string> &textureMap);
+
 /// Loads the given local file into the specified vector. Clears all data previously in the vector.
 /// Returns true on success.
 bool LoadFileToVector(const char *filename, std::vector<u8> &dst);
@@ -40,7 +42,7 @@ public:
     ~AssetAPI();
 
 public:
-    std::map<std::string, std::map<std::string, std::string> > textureMap;
+    std::map<std::string, std::string> textureMap;
     /// Registers a type factory for creating assets of the type governed by the factory.
     void RegisterAssetTypeFactory(AssetTypeFactoryPtr factory);
 

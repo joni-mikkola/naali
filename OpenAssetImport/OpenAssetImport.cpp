@@ -22,10 +22,11 @@
 #include "OgreAnimation.h"
 #include "OgreAnimationTrack.h"
 #include "OgreKeyFrame.h"
+#include <QString>
 #include <boost/tuple/tuple.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
-static int dummyMatCount = 0;
+ static int meshNum = 0;
 
 Ogre::String toString(const aiColor4D& colour)
 {
@@ -37,8 +38,16 @@ Ogre::String toString(const aiColor4D& colour)
 
 int OpenAssetImport::msBoneCount = 0;
 
-void fixRef(std::string &matRef, std::string addRef)
+void fixMaterialReference(std::string &matRef, std::string addRef)
 {
+    addRef.replace(0, 7, "http://");
+
+    for (uint i = 0; i < addRef.length(); ++i)
+        if (addRef[i] == '_') addRef[i] = '/';
+
+    size_t tmp = addRef.find_last_of('/')+1;
+    addRef.erase(tmp, addRef.length() - tmp);
+
     size_t indx = matRef.find("texture ", 0);
     matRef.replace(indx+8, 0, addRef);
 }
@@ -52,19 +61,18 @@ OpenAssetImport::~OpenAssetImport()
 {
 }
 
-bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat, std::string addr)
+
+
+bool OpenAssetImport::convert(unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat, std::string addr)
 {
-    dummyMatCount = 0;
+    meshNum = 0;
+    //dummyMatCount = 0;
     mLoaderParams = loaderParams;
-    //mCustomAnimationName = customAnimationName;
+
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
     {
         mNodeDerivedTransformByName.clear();
     }
-    
-    //Ogre::String extension;
-    //Ogre::StringUtil::splitFullFilename(filename, mBasename, extension, mPath);
-    //mBasename = mBasename + "_" + extension;
 
     Assimp::DefaultLogger::create("asslogger.log",Assimp::Logger::VERBOSE);
     Assimp::DefaultLogger::get()->info("Logging asses");
@@ -82,18 +90,18 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
     // degenerate structures from bad modelling or bad import/export.  if they
     // are needed it can be turned on with IncludeLinesPoints
     int removeSortFlags = importer.GetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE);
-    genMaterials = noMat;
+    dontGenMaterials = noMat;
     removeSortFlags |= aiPrimitiveType_POINT | aiPrimitiveType_LINE;
-
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
 
     // And have it read the given file with some example postprocessing
     // Usually - if speed is not the most important aspect for you - you'll
     // propably to request more postprocessing than we do in this example.
-
+    //Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
     scene = importer.ReadFileFromMemory(fileData, numBytes, 0
-                                        // | aiProcess_SplitLargeMeshes
+                                        |aiProcess_SplitLargeMeshes
                                         //aiProcess_MakeLeftHanded
-                                        // | aiProcess_Triangulate
+                                        | aiProcess_Triangulate
                                         | aiProcess_FlipUVs
                                         | aiProcess_FindInvalidData
                                         //  | aiProcess_FlipWindingOrder
@@ -107,7 +115,7 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                                         | aiProcess_ImproveCacheLocality
                                         | aiProcess_LimitBoneWeights
                                         //| aiProcess_FindDegenerates
-                                        //| aiProcess_SortByPType*/
+                                        //| aiProcess_SortByPType
                                         );
 
 
@@ -150,8 +158,6 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
 
     if(!mSkeleton.isNull())
     {
-
-
         unsigned short numBones = mSkeleton->getNumBones();
         unsigned short i;
         for (i = 0; i < numBones; ++i)
@@ -159,8 +165,6 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
             Ogre::Bone* pBone = mSkeleton->getBone(i);
             assert(pBone);
         }
-
-
 
         Ogre::SkeletonSerializer binSer;
         binSer.exportSkeleton(mSkeleton.getPointer(), mPath + mBasename + ".skeleton");
@@ -200,8 +204,10 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
         //return true;
     }
 
-    matList.clear();
-    matNameList.clear();
+    //matList.clear();
+    //matNameList.clear();
+
+    QString fileLocation = addr.c_str();
 
     if(!noMat)///*mLoaderParams & */!LP_GENERATE_MATERIALS_AS_CODE)
     {
@@ -217,7 +223,6 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
             Ogre::MaterialManager *mmptr = Ogre::MaterialManager::getSingletonPtr();
             Ogre::Mesh::SubMeshIterator it = mMesh->getSubMeshIterator();
 
-
             while(it.hasMoreElements())
             {
                 Ogre::SubMesh* sm = it.getNext();
@@ -225,23 +230,24 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
                 if (std::find(exportedNames.begin(), exportedNames.end(), matName) == exportedNames.end())
                 {
                     Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
-                    Ogre::Material * materiaali = materialPtr.getPointer();
+                    ms.queueForExport(materialPtr, true);
 
+                    std::string materialInfo = ms.getQueuedAsString();
 
-                    //set culling to none, so "invisible" faces can be seen
-                    materiaali->setCullingMode(Ogre::CULL_NONE);
-                    ms.queueForExport(materialPtr, true, false);
+                    if (materialInfo.find("texture ") != std::string::npos && addr.find("http", 0) != std::string::npos)
+                        fixMaterialReference(materialInfo, addr);
 
-                    exportedNames.push_back(matName);
-                    std::string testString = ms.getQueuedAsString();
+                    QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
 
-                    std::string testt = ms.getQueuedAsString();
-                    fixRef(testt, addr);
-                    matList[sm->getMaterialName() + ".material"] = testt;
+                    Ogre::LogManager::getSingleton().logMessage("OAI: " + parsedRef.toStdString());
+                     Ogre::LogManager::getSingleton().logMessage(materialInfo);
+
+                    if (fileLocation.startsWith("http"))
+                        matList[fileLocation.toStdString() + "#" + sm->getMaterialName() + ".material"] = materialInfo;
+                    else
+                        matList[parsedRef.toStdString() + "#" + sm->getMaterialName() + ".material"] = materialInfo;
                     matNameList.push_back(sm->getMaterialName() + ".material");
-                    ms.clearQueue();
 
-                    exportedNames.clear();
                 }
             }
         }
@@ -257,8 +263,8 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, i
     mCustomAnimationName = "";
     // etc...
 
-    //Ogre::MeshManager::getSingleton().removeUnreferencedResources();
-    //Ogre::SkeletonManager::getSingleton().removeUnreferencedResources();
+    Ogre::MeshManager::getSingleton().removeUnreferencedResources();
+    Ogre::SkeletonManager::getSingleton().removeUnreferencedResources();
 
     return true;
 }
@@ -745,7 +751,7 @@ bool OpenAssetImport::isNodeNeeded(const char* name)
 
 void OpenAssetImport::grabBoneNamesFromNode(const aiScene* mScene,  const aiNode *pNode)
 {
-    static int meshNum = 0;
+
     meshNum++;
     if(pNode->mNumMeshes > 0)
     {
@@ -816,15 +822,15 @@ Ogre::String ReplaceSpaces(const Ogre::String& s)
 
 Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* mat, const Ogre::String& mDir)
 {
-
+    static int dummyMatCount = 0;
 
     // extreme fallback texture -- 2x2 hot pink
-    static Ogre::uint8 s_RGB[] = {128, 0, 255, 128, 0, 255, 128, 0, 255, 128, 0, 255};
+    Ogre::uint8 s_RGB[] = {128, 0, 255, 128, 0, 255, 128, 0, 255, 128, 0, 255};
 
     std::ostringstream matname;
     Ogre::MaterialManager* omatMgr =  Ogre::MaterialManager::getSingletonPtr();
     enum aiTextureType type = aiTextureType_DIFFUSE;
-    static aiString path;
+    aiString path;
     aiTextureMapping mapping = aiTextureMapping_UV;       // the mapping (should be uv for now)
     unsigned int uvindex = 0;                             // the texture uv index channel
     float blend = 1.0f;                                   // blend
@@ -839,7 +845,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     {
         Ogre::LogManager::getSingleton().logMessage("Using aiGetMaterialString : Found texture " + Ogre::String(szPath.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
     }
-    if(szPath.length < 1)
+    if(szPath.length < 1 && !dontGenMaterials)
     {
         Ogre::LogManager::getSingleton().logMessage("Didn't find any texture units...");
         szPath = Ogre::String("dummyMat" + Ogre::StringConverter::toString(dummyMatCount)).c_str();
@@ -993,7 +999,7 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
 
     // We must now declare what the vertex data contains
     Ogre::VertexDeclaration* declaration = submesh->vertexData->vertexDeclaration;
-    static const unsigned short source = 0;
+    const unsigned short source = 0;
     size_t offset = 0;
     offset += declaration->addElement(source,offset,Ogre::VET_FLOAT3,Ogre::VES_POSITION).getSize();
 

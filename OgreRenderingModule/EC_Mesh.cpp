@@ -13,6 +13,7 @@
 #include "OgreMaterialAsset.h"
 #include "IAssetTransfer.h"
 #include "AssetAPI.h"
+#include <map>
 
 #include <Ogre.h>
 #include <OgreTagPoint.h>
@@ -978,7 +979,6 @@ void EC_Mesh::OnAttributeUpdated(IAttribute *attribute)
 
         for(int i = 0; i < materials.Size(); ++i)
         {
-            LogInfo(materials[i].ref.toStdString());
             connect(materialAssets[i].get(), SIGNAL(Loaded(AssetPtr)), this, SLOT(OnMaterialAssetLoaded(AssetPtr)), Qt::UniqueConnection);
             materialAssets[i]->HandleAssetRefChange(framework_->Asset(), materials[i].ref);
         }
@@ -1005,17 +1005,6 @@ void EC_Mesh::OnComponentRemoved(IComponent* component, AttributeChange::Type ch
         SetPlaceable(ComponentPtr());
 }
 
-std::string fixAddr(std::string addrString)
-{
-    addrString.replace(0, 7, "http://");
-    ReplaceCharInplace(addrString, '_', '/');
-    size_t tmp = addrString.find_last_of('/')+1;
-    addrString.erase(tmp, addrString.length() - tmp);
-    //LogInfo(addrString);
-    return addrString;
-}
-
-
 void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 {
     OgreMeshAsset *mesh = dynamic_cast<OgreMeshAsset*>(asset.get());
@@ -1027,18 +1016,20 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 
     if (!asset->DiskSource().endsWith(".mesh"))
     {
+        OpenAssetImport import;
         QString fileLocation = mesh->DiskSource();
         std::vector<u8> fileData;
-        OpenAssetImport import;
         LoadFileToVector(fileLocation.toStdString().c_str(), fileData);
 
         QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
         bool success;
 
+        LogInfo(parsedRef.toStdString());
+
         if (parsedRef.startsWith("http"))
-            success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false, fixAddr(parsedRef.toStdString()));
+           success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false, parsedRef.toStdString());
         else
-            success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false);
+            success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false, mesh->DiskSource().toStdString());
 
         if (!success)
         {
@@ -1047,7 +1038,7 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         }
 
         // Store all the material stuff into a map
-        framework_->Asset()->textureMap[parsedRef.toStdString()] = import.matList;
+        framework_->Asset()->textureMap.insert(import.matList.begin(), import.matList.end());
 
         // Create reference list for materials which to add to the scene
         AssetReferenceList refList;
@@ -1055,6 +1046,13 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         // Loop through material list and insert each material separated with '#' from filename
         for (int i = 0; i < import.matNameList.size(); i++)
             refList.Append(AssetReference(parsedRef.toStdString() + "#" + import.matNameList[i]));
+
+        for ( std::map<std::string, std::string >::const_iterator iter = framework_->Asset()->textureMap.begin(); iter != framework_->Asset()->textureMap.end(); ++iter )
+        {
+            //LogInfo(iter->first);
+            //LogInfo(iter->second);
+
+        }
 
         meshMaterial.Set(refList, AttributeChange::Default);
     }
@@ -1142,7 +1140,6 @@ void EC_Mesh::OnSkeletonAssetLoaded(AssetPtr asset)
 
 void EC_Mesh::OnMaterialAssetLoaded(AssetPtr asset)
 {
-    LogInfo(asset->DiskSource().toStdString());
     OgreMaterialAsset *ogreMaterial = dynamic_cast<OgreMaterialAsset*>(asset.get());
     if (!ogreMaterial)
     {
