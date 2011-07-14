@@ -1,5 +1,8 @@
 // For conditions of distribution and use, see copyright notice in license.txt
 
+#include "../OpenAssetImport/OpenAssetImport.h"
+#include "OgreMeshSerializer.h"
+
 #include "DebugOperatorNew.h"
 #include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
@@ -23,7 +26,6 @@
 #include "Platform.h"
 #include <QDir>
 #include <QFileSystemWatcher>
-
 
 DEFINE_POCO_LOGGING_FUNCTIONS("Asset")
 
@@ -524,45 +526,6 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
     // Turn named storage (and default storage) specifiers to absolute specifiers.
     assetRef = LookupAssetRefToStorage(assetRef);
 
-
-   /* {
-    if (assetRef.contains("#"))
-    {
-        QString matName, parsedRef = assetRef.mid(0, assetRef.indexOf("#"));
-
-        AssetProviderPtr provider = GetProviderForAssetRef(assetRef, assetType);
-
-        if (!provider)
-        {
-            LogError("AssetAPI::RequestAsset: Failed to find a provider for asset \"" + assetRef + "\", type: \"" + assetType + "\"");
-            return AssetTransferPtr();
-        }
-
-        matName = assetRef.mid(assetRef.indexOf('#') + 1, assetRef.length() - assetRef.indexOf('#'));
-
-        std::string matInfo = textureMap[matName.toStdString()];
-
-        if (matInfo.empty() == false)
-        {
-            AssetTransferPtr transfer;
-            transfer = AssetTransferPtr(new IAssetTransfer());
-
-            LogInfo(matInfo);
-
-            for (int i = 0; i < matInfo.length()-1; i++)
-                transfer->rawAssetData.push_back(matInfo[i]);
-
-            transfer->source.ref = assetRef;
-            transfer->assetType = assetType;
-            transfer->storage = AssetStorageWeakPtr(); // Note: Unfortunately when we load an asset from cache, we don't get the information about which storage it's supposed to come from.
-            transfer->provider = provider;
-            transfer->SetCachingBehavior(false, "");
-            LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
-            readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
-        }
-    }
-    }*/
-
     // To optimize, we first check if there is an outstanding request to the given asset. If so, we return that request. In effect, we never
     // have multiple transfers running to the same asset. (Important: This must occur before checking the assets map for whether we already have the asset in memory, since
     // an asset will be stored in the AssetMap when it has been downloaded, but it might not yet have all its dependencies loaded).
@@ -872,6 +835,22 @@ QString GuaranteeTrailingSlash(const QString &source)
     return s;
 }
 
+bool IsAssimpSupported(const QString &filename)
+{
+    const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
+        ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
+        ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
+        ".ply", ".cob", ".scn" };
+
+    int numSuffixes = NUMELEMS(openAssImpFileTypes);
+
+    for(int i = 0;i < numSuffixes; ++i)
+        if (filename.endsWith(openAssImpFileTypes[i]))
+            return true;
+
+    return false;
+}
+
 void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 {
     // At this point, the transfer can originate from several different things:
@@ -923,7 +902,13 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
     transfer->asset->SetAssetTransfer(transfer);
 
     AssetLoadState loadState;
-    
+
+    if (IsAssimpSupported(transfer->asset->DiskSource()))
+    {
+        QString tmpString = transfer->asset->DiskSource();
+        LoadAssimpMesh(tmpString, transfer->rawAssetData);
+    }
+
     loadState = transfer->asset->LoadFromFileInMemory(&transfer->rawAssetData[0], transfer->rawAssetData.size());
 
     // If the asset is still processing the load it will itself invoke the callback,
@@ -1216,19 +1201,28 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
     }
 }
 
-bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<std::string, std::string> &textureMap)
+bool LoadAssimpMesh(QString &ref, std::vector<u8> &dst)
 {
-    // Read material data to matInfo
+    OpenAssetImport import;
 
-    std::map<std::string, std::string>::iterator it;
-    it = textureMap.find(ref.toStdString());
+    import.convert(ref.toStdString().c_str(), false, "");
 
-    std::string matInfo = it->second;
+    Ogre::MeshSerializer serializer;
+    QString tempFilename = "tmp.mesh";
+    serializer.exportMesh(import.mMesh.get(), tempFilename.toStdString());
+    LoadFileToVector(tempFilename.toStdString().c_str(), dst);
+    QFile::remove(tempFilename); // Delete the temporary file we used for serialization.
+}
 
-    if (matInfo.empty() == false)
+bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &materialMap)
+{
+    std::map<QString, QString>::iterator it;
+    it = materialMap.find(ref);
+
+    if (it != materialMap.end())
     {
-        for (int i = 0; i < matInfo.length()-1; i++)
-            dst.push_back(matInfo[i]);
+        for (int i = 0; i < it->second.length()-1; i++)
+            dst.push_back(it->second[i].toAscii());
         return true;
     }
 

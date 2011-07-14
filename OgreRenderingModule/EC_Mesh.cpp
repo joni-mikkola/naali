@@ -19,6 +19,8 @@
 #include <OgreTagPoint.h>
 
 
+#include "LocalAssetProvider.h"
+
 #include "LoggingFunctions.h"
 DEFINE_POCO_LOGGING_FUNCTIONS("EC_Mesh")
 
@@ -1014,31 +1016,27 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         return;
     }
 
-    if (!asset->DiskSource().endsWith(".mesh"))
+    if (IsAssimpSupported(asset->DiskSource()))
     {
         OpenAssetImport import;
         QString fileLocation = mesh->DiskSource();
-        std::vector<u8> fileData;
-        LoadFileToVector(fileLocation.toStdString().c_str(), fileData);
-
         QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+
         bool success;
 
-        LogInfo(parsedRef.toStdString());
-
         if (parsedRef.startsWith("http"))
-           success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false, parsedRef.toStdString());
+           success = import.convert(mesh->DiskSource().toStdString().c_str(), true, parsedRef);
         else
-            success = import.convert((u8*)&fileData[0], fileData.size(), OpenAssetImport::LP_GENERATE_SINGLE_MESH, false, mesh->DiskSource().toStdString());
+            success = import.convert(mesh->DiskSource().toStdString().c_str(), true, mesh->DiskSource().toStdString().c_str());
 
         if (!success)
         {
-            LogError("AssImp -> OgreMesh conversion failed for file " + fileLocation.toStdString());
+            LogError("Material loading failed for file " + fileLocation.toStdString());
             return;
         }
 
         // Store all the material stuff into a map
-        framework_->Asset()->textureMap.insert(import.matList.begin(), import.matList.end());
+        framework_->Asset()->materialMap.insert(import.matList.begin(), import.matList.end());
 
         // Create reference list for materials which to add to the scene
         AssetReferenceList refList;
@@ -1046,13 +1044,6 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         // Loop through material list and insert each material separated with '#' from filename
         for (int i = 0; i < import.matNameList.size(); i++)
             refList.Append(AssetReference(parsedRef.toStdString() + "#" + import.matNameList[i]));
-
-        for ( std::map<std::string, std::string >::const_iterator iter = framework_->Asset()->textureMap.begin(); iter != framework_->Asset()->textureMap.end(); ++iter )
-        {
-            //LogInfo(iter->first);
-            //LogInfo(iter->second);
-
-        }
 
         meshMaterial.Set(refList, AttributeChange::Default);
     }

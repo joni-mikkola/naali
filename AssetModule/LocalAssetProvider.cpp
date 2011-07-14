@@ -196,8 +196,6 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         pendingDownloads.pop_back();
 
         QString ref = transfer->source.ref;
-        //AssetModule::LogInfo(transfer->source.ref.toStdString());
-//        AssetModule::LogDebug("New local asset request: " + ref.toStdString());
 
         // Strip file: trims asset provider id (f.ex. 'file://') and potential mesh name inside the file (everything after last slash)
         if (ref.startsWith("file://"))
@@ -205,12 +203,15 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         if (ref.startsWith("local://"))
             ref = ref.mid(8);
 
-        int lastSlash = ref.lastIndexOf('/');
-        if (lastSlash != -1)
-            ref = ref.left(lastSlash);
+        //int lastSlash = ref.lastIndexOf('/');
+        //if (lastSlash != -1)
+        //   ref = ref.left(lastSlash);
 
+        AssetModule::LogInfo(ref.toStdString());
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
+
+        AssetModule::LogInfo(path.toStdString());
 
         if (path.isEmpty() && !ref.contains("#"))
         {
@@ -227,7 +228,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         bool success;
 
         if (ref.contains("#")) 
-            success = LoadMaterialInfo(ref, transfer->rawAssetData, framework->Asset()->textureMap);
+            success = LoadMaterialInfo(ref, transfer->rawAssetData, framework->Asset()->materialMap);
         else
             success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
 

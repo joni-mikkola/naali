@@ -14,7 +14,12 @@
 
 class QFileSystemWatcher;
 
-bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<std::string, std::string> &textureMap);
+bool IsAssimpSupported(const QString &filename);
+
+bool LoadAssimpMesh(QString &ref, std::vector<u8> &dst);
+
+
+bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &textureMap);
 
 /// Loads the given local file into the specified vector. Clears all data previously in the vector.
 /// Returns true on success.
@@ -42,7 +47,8 @@ public:
     ~AssetAPI();
 
 public:
-    std::map<std::string, std::string> textureMap;
+    /// Store all material information here
+    std::map<QString, QString> materialMap;
     /// Registers a type factory for creating assets of the type governed by the factory.
     void RegisterAssetTypeFactory(AssetTypeFactoryPtr factory);
 
