@@ -13,7 +13,6 @@
 #include "OgreMaterialAsset.h"
 #include "IAssetTransfer.h"
 #include "AssetAPI.h"
-#include <map>
 
 #include <Ogre.h>
 #include <OgreTagPoint.h>
@@ -1018,32 +1017,15 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 
     if (IsAssimpSupported(asset->DiskSource()))
     {
-        OpenAssetImport import;
-        QString fileLocation = mesh->DiskSource();
-        QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
-
-        bool success;
-
-        if (parsedRef.startsWith("http"))
-           success = import.convert(mesh->DiskSource().toStdString().c_str(), true, parsedRef);
-        else
-            success = import.convert(mesh->DiskSource().toStdString().c_str(), true, mesh->DiskSource().toStdString().c_str());
-
-        if (!success)
-        {
-            LogError("Material loading failed for file " + fileLocation.toStdString());
-            return;
-        }
-
-        // Store all the material stuff into a map
-        framework_->Asset()->materialMap.insert(import.matList.begin(), import.matList.end());
-
         // Create reference list for materials which to add to the scene
         AssetReferenceList refList;
 
+        QString fileLocation = asset->DiskSource();
+        QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
         // Loop through material list and insert each material separated with '#' from filename
-        for (int i = 0; i < import.matNameList.size(); i++)
-            refList.Append(AssetReference(parsedRef.toStdString() + "#" + import.matNameList[i]));
+        std::vector<QString> vektori = framework_->Asset()->materialOrderMap[asset->DiskSource()];
+        for (int i = 0; i < vektori.size(); i++)
+            refList.Append(AssetReference(parsedRef + "#" + vektori[i]));
 
         meshMaterial.Set(refList, AttributeChange::Default);
     }

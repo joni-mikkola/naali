@@ -28,7 +28,7 @@
 
 static int meshNum = 0;
 
-Ogre::String toString(const aiColor4D& colour)
+inline Ogre::String toString(const aiColor4D& colour)
 {
     return	Ogre::StringConverter::toString(colour.r) + " " +
             Ogre::StringConverter::toString(colour.g) + " " +
@@ -38,7 +38,7 @@ Ogre::String toString(const aiColor4D& colour)
 
 int OpenAssetImport::msBoneCount = 0;
 
-void FixFileReference(QString &matRef, QString addRef)
+inline void FixFileReference(QString &matRef, QString addRef)
 {
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
@@ -50,7 +50,7 @@ void FixFileReference(QString &matRef, QString addRef)
     matRef.replace(indx+8, 0, addRef + '/');
 }
 
-void FixHttpReference(QString &matRef, QString addRef)
+inline void FixHttpReference(QString &matRef, QString addRef)
 {
     addRef.replace(0, 7, "http://");
     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
@@ -99,7 +99,8 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
     importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
     importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
-
+    importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
+    importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
 
     // And have it read the given file with some example postprocessing
     // Usually - if speed is not the most important aspect for you - you'll
@@ -109,14 +110,13 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                               | aiProcess_FindInvalidData
                               | aiProcess_GenNormals
                               | aiProcess_Triangulate
-                              | aiProcess_GenUVCoords
                               | aiProcess_FlipUVs
                               | aiProcess_JoinIdenticalVertices
                               | aiProcess_PreTransformVertices
                               | aiProcess_OptimizeMeshes
                               | aiProcess_RemoveRedundantMaterials
                               | aiProcess_ImproveCacheLocality
-                              | aiProcess_LimitBoneWeights
+                              //| aiProcess_LimitBoneWeights
                               | aiProcess_SortByPType
                               );
 
@@ -205,6 +205,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     if(generateMaterials)
     {
         Ogre::MaterialSerializer ms;
+        
 
 
         std::vector<Ogre::String> exportedNames;
@@ -228,7 +229,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
                     QString materialInfo = ms.getQueuedAsString().c_str();
 
-
                     if (materialInfo.contains("texture "))
                     {
                         if (addr.startsWith("http"))
@@ -244,7 +244,8 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                     else
                         matList[parsedRef + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
 
-                    matNameList.push_back(sm->getMaterialName() + ".material");
+                    QString tmp = sm->getMaterialName().c_str();
+                    matNameList.push_back(tmp + ".material");
                 }
             }
         }
@@ -864,7 +865,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
         //it's working for 3d warehouse models though the problem is probably in the models
         ogreMaterial->setCullingMode(Ogre::CULL_NONE);
 
-        Ogre::LogManager::getSingleton().logMessage("Found texture " + Ogre::String(path.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
+        /*Ogre::LogManager::getSingleton().logMessage("Found texture " + Ogre::String(path.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
         if(AI_SUCCESS == aiGetMaterialString(mat, AI_MATKEY_TEXTURE_DIFFUSE(0), &szPath))
         {
             Ogre::LogManager::getSingleton().logMessage("Using aiGetMaterialString : Found texture " + Ogre::String(szPath.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
@@ -908,7 +909,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
         }
         //szPath.Set("/home/joni/AssImpTesting/SkeletalAnimation/boy_10.tga");
         Ogre::TextureManager::getSingleton().loadImage(Ogre::String(szPath.data), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, image);
-        //TODO: save this to materials/textures ?
+        //TODO: save this to materials/textures ?*/
         Ogre::TextureUnitState* texUnitState = ogreMaterial->getTechnique(0)->getPass(0)->createTextureUnitState(basename);
 
     }

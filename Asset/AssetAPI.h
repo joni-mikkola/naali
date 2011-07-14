@@ -7,6 +7,7 @@
 #include <vector>
 #include <utility>
 #include <map>
+#include <tr1/unordered_map>
 
 #include "CoreTypes.h"
 #include "AssetFwd.h"
@@ -47,8 +48,11 @@ public:
     ~AssetAPI();
 
 public:
+    
     /// Store all material information here
+    std::map<QString, std::vector<QString> > materialOrderMap;
     std::map<QString, QString> materialMap;
+
     /// Registers a type factory for creating assets of the type governed by the factory.
     void RegisterAssetTypeFactory(AssetTypeFactoryPtr factory);
 

@@ -45,7 +45,7 @@ public:
 
     Ogre::MeshPtr mMesh;
     std::map<QString, QString> matList;
-    std::vector<std::string> matNameList;
+    std::vector<QString> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
 
 private:

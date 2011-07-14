@@ -906,7 +906,33 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
     if (IsAssimpSupported(transfer->asset->DiskSource()))
     {
         QString tmpString = transfer->asset->DiskSource();
-        LoadAssimpMesh(tmpString, transfer->rawAssetData);
+
+        OpenAssetImport import;
+        bool success;
+
+        QString fileLocation = transfer->asset->DiskSource();
+        QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+
+        if (parsedRef.startsWith("http"))
+            success = import.convert(transfer->asset->DiskSource().toStdString().c_str(), true, parsedRef);
+        else
+            success = import.convert(transfer->asset->DiskSource().toStdString().c_str(), true, transfer->asset->DiskSource().toStdString().c_str());
+
+        if (!success)
+        {
+            LogError("Material loading failed for file " + fileLocation.toStdString());
+            return;
+        }
+
+        // Store all the material stuff into a map
+        this->materialMap.insert(import.matList.begin(), import.matList.end());
+        this->materialOrderMap[transfer->asset->DiskSource()] = import.matNameList;
+
+        Ogre::MeshSerializer serializer;
+        QString tempFilename = "tmp.mesh";
+        serializer.exportMesh(import.mMesh.get(), tempFilename.toStdString());
+        LoadFileToVector(tempFilename.toStdString().c_str(), transfer->rawAssetData);
+        QFile::remove(tempFilename); // Delete the temporary file we used for serialization.
     }
 
     loadState = transfer->asset->LoadFromFileInMemory(&transfer->rawAssetData[0], transfer->rawAssetData.size());
@@ -1203,15 +1229,7 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
 
 bool LoadAssimpMesh(QString &ref, std::vector<u8> &dst)
 {
-    OpenAssetImport import;
 
-    import.convert(ref.toStdString().c_str(), false, "");
-
-    Ogre::MeshSerializer serializer;
-    QString tempFilename = "tmp.mesh";
-    serializer.exportMesh(import.mMesh.get(), tempFilename.toStdString());
-    LoadFileToVector(tempFilename.toStdString().c_str(), dst);
-    QFile::remove(tempFilename); // Delete the temporary file we used for serialization.
 }
 
 bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &materialMap)
