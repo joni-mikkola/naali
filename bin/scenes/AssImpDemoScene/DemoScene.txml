@@ -1,0 +1,465 @@
+<!DOCTYPE Scene>
+<scene>
+ <entity id="1">
+  <component type="EC_EnvironmentLight" sync="1" name="Sun1">
+   <attribute value="0.638999999 0.638999999 0.638999999 1" name="Sun color"/>
+   <attribute value="0.363999993 0.363999993 0.363999993 1" name="Ambient color"/>
+   <attribute value="0.930000007 0.930000007 0.930000007 1" name="Sun diffuse color"/>
+   <attribute value="4 5 -5" name="Sun direction vector"/>
+   <attribute value="false" name="Use fixed time"/>
+   <attribute value="0.670000017" name="Current time"/>
+   <attribute value="true" name="Sun cast shadows"/>
+   <attribute value="true" name="Use Caelum"/>
+  </component>
+  <component type="EC_SkyBox" sync="1" name="skybox">
+   <attribute value="RexSkyBox" name="Material"/>
+   <attribute value="rex_sky_front.dds;rex_sky_back.dds;rex_sky_left.dds;rex_sky_right.dds;rex_sky_top.dds;rex_sky_bot.dds" name="Texture"/>
+   <attribute value="50" name="Distance"/>
+   <attribute value="0.707106769 0.707106769 0 0" name="Orientation"/>
+   <attribute value="true" name="Draw first"/>
+  </component>
+  <component type="EC_EnvironmentLight" sync="1" name="Sun">
+   <attribute value="0.638999999 0.638999999 0.638999999 1" name="Sun color"/>
+   <attribute value="0.363999993 0.363999993 0.363999993 1" name="Ambient color"/>
+   <attribute value="0.930000007 0.930000007 0.930000007 1" name="Sun diffuse color"/>
+   <attribute value="-1 -1 -1" name="Sun direction vector"/>
+   <attribute value="false" name="Use fixed time"/>
+   <attribute value="0.670000017" name="Current time"/>
+   <attribute value="true" name="Sun cast shadows"/>
+   <attribute value="true" name="Use Caelum"/>
+  </component>
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,0,1,1,1" name="Transform"/>
+   <attribute value="local://rect_plane.mesh" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="" name="Mesh materials"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="0,0,-5.01,0,0,0,400,1,400" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Environment" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_RigidBody" sync="1" name="GroundBody">
+   <attribute value="0" name="Mass"/>
+   <attribute value="0" name="Shape type"/>
+   <attribute value="1 1 1" name="Size"/>
+   <attribute value="local://rect_plane.mesh" name="Collision mesh ref"/>
+   <attribute value="0.5" name="Friction"/>
+   <attribute value="0" name="Restitution"/>
+   <attribute value="0" name="Linear damping"/>
+   <attribute value="0" name="Angular damping"/>
+   <attribute value="1 1 1" name="Linear factor"/>
+   <attribute value="1 1 1" name="Angular factor"/>
+   <attribute value="false" name="Phantom"/>
+   <attribute value="true" name="Draw Debug"/>
+   <attribute value="0 0 0" name="Linear velocity"/>
+   <attribute value="0 0 0" name="Angular velocity"/>
+   <attribute value="true" name="Gravity"/>
+  </component>
+ </entity>
+ <entity id="2">
+  <component type="EC_Script" sync="1">
+   <attribute value="js" name="Type"/>
+   <attribute value="true" name="Run on load"/>
+   <attribute value="local://avatarapplication.js" name="Script ref"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="AvatarScript" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+ </entity>
+ <entity id="3">
+  <component type="EC_Name" sync="1">
+   <attribute value="Instructions" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Script" sync="1">
+   <attribute value="" name="Type"/>
+   <attribute value="true" name="Run on load"/>
+   <attribute value="local://instructions.js" name="Script ref"/>
+  </component>
+ </entity>
+ <entity id="4">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
+   <attribute value="file://gable/models/gable.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Gable" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="0,0,-5,0,0,90,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+  <component type="EC_RigidBody" sync="1" name="GableBody">
+   <attribute value="0" name="Mass"/>
+   <attribute value="4" name="Shape type"/>
+   <attribute value="1 1 1" name="Size"/>
+   <attribute value="file://gable/models/gable.dae" name="Collision mesh ref"/>
+   <attribute value="0.5" name="Friction"/>
+   <attribute value="0" name="Restitution"/>
+   <attribute value="0" name="Linear damping"/>
+   <attribute value="0" name="Angular damping"/>
+   <attribute value="1 1 1" name="Linear factor"/>
+   <attribute value="1 1 1" name="Angular factor"/>
+   <attribute value="false" name="Phantom"/>
+   <attribute value="true" name="Draw Debug"/>
+   <attribute value="0 0 0" name="Linear velocity"/>
+   <attribute value="0 0 0" name="Angular velocity"/>
+   <attribute value="true" name="Gravity"/>
+  </component>
+ </entity>
+ <entity id="5">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
+   <attribute value="file://cityhouse/models/cityhouse.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Cityhouse" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="5,12,-5,0,0,90,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+  <component type="EC_RigidBody" sync="1" name="CityHouseBody">
+   <attribute value="0" name="Mass"/>
+   <attribute value="4" name="Shape type"/>
+   <attribute value="1 1 1" name="Size"/>
+   <attribute value="file://cityhouse/models/cityhouse.dae" name="Collision mesh ref"/>
+   <attribute value="0.5" name="Friction"/>
+   <attribute value="0" name="Restitution"/>
+   <attribute value="0" name="Linear damping"/>
+   <attribute value="0" name="Angular damping"/>
+   <attribute value="1 1 1" name="Linear factor"/>
+   <attribute value="1 1 1" name="Angular factor"/>
+   <attribute value="false" name="Phantom"/>
+   <attribute value="true" name="Draw Debug"/>
+   <attribute value="0 0 0" name="Linear velocity"/>
+   <attribute value="0 0 0" name="Angular velocity"/>
+   <attribute value="true" name="Gravity"/>
+  </component>
+ </entity>
+ <entity id="6">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
+   <attribute value="file://crowne/models/crowne.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Crowne" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="47,-15,-5,0,0,-9,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="7">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="-2400,2700,0,90,0,190,0.1,0.1,0.1" name="Transform"/>
+   <attribute value="file://house2/models/house2.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="House2" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="47,-14,-5,0,0,-9,0.02,0.02,0.02" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="8">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
+   <attribute value="file://bunga/models/bunga.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Bunga" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="1,-23,-5,0,0,90,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+  <component type="EC_RigidBody" sync="1" name="BungaBody">
+   <attribute value="0" name="Mass"/>
+   <attribute value="4" name="Shape type"/>
+   <attribute value="1 1 1" name="Size"/>
+   <attribute value="file://bunga/models/bunga.dae" name="Collision mesh ref"/>
+   <attribute value="0.5" name="Friction"/>
+   <attribute value="0" name="Restitution"/>
+   <attribute value="0" name="Linear damping"/>
+   <attribute value="0" name="Angular damping"/>
+   <attribute value="1 1 1" name="Linear factor"/>
+   <attribute value="1 1 1" name="Angular factor"/>
+   <attribute value="false" name="Phantom"/>
+   <attribute value="true" name="Draw Debug"/>
+   <attribute value="0 0 0" name="Linear velocity"/>
+   <attribute value="0 0 0" name="Angular velocity"/>
+   <attribute value="true" name="Gravity"/>
+  </component>
+ </entity>
+ <entity id="9">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1.3,1.3,1.3" name="Transform"/>
+   <attribute value="file://mustang/models/mustang.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Mustang" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="1,19,-5,0,0,170,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="10">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
+   <attribute value="file://Samara/models/samara.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Samara" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="3,-18,-5,0,0,165,0.01,0.01,0.01" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="11">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
+   <attribute value="file://house3/models/house3.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="House3" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-59,-43,-5,0,0,180,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="12">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
+   <attribute value="file://house4/models/house4.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="House4" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-30,-50,-5,0,0,0,0.02,0.02,0.02" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="13">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
+   <attribute value="file://casatentativa2/models/casatentativa2.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Casatentativa2" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="0,-46,-5,0,0,0,0.01,0.01,0.01" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="14">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,1.1,1.1,1.1" name="Transform"/>
+   <attribute value="file://farmhouse/models/farmhouse.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Farmhouse" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-62,-16,-5,0,0,180,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="15">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="-2000,-1000,0,90,0,180,0.02,0.02,0.02" name="Transform"/>
+   <attribute value="file://VAZ-21047/models/VAZ-21047.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Vaz" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-62,-16,-5,0,0,180,0.01,0.01,0.01" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="16">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,180,0.2,0.2,0.2" name="Transform"/>
+   <attribute value="file://sofa/models/Sofa.3ds" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Sofa" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-24,9,-5,0,0,180,0.02,0.02,0.02" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="17">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,90,0,90,1,1,1" name="Transform"/>
+   <attribute value="file://Cessna/models/cessna.obj" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Cessna" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="11,-25,9,21,0,180,0.3,0.3,0.3" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="18">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,0,0,0,1,1,1" name="Transform"/>
+   <attribute value="file://HUMAN.blend" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Human" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-24,8,-2.2,84,-163,-90,0.5,0.5,0.5" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="19">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,180,0,180,1,1,1" name="Transform"/>
+   <attribute value="file://jeep/models/jeep1.ms3d" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Jeep" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-41,-2,-3.5,62,1,316,0.5,0.5,0.5" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="20">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,0,0,0,0,0,1,1,1" name="Transform"/>
+   <attribute value="file://duck/models/duck.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Duck" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-12,7,-5.3,90,0,-70,0.03,0.03,0.03" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+</scene>
