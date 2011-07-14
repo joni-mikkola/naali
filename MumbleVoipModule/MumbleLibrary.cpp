@@ -20,8 +20,6 @@ namespace MumbleLib
 
     void MumbleLibrary::Start()
     {
-        //MumbleClient::logging::SetLogLevel(MumbleClient::logging::LOG_WARNING);
-        MumbleClient::logging::SetLogLevel(MumbleClient::logging::LOG_INFO);
         StartMumbleThread();
         //emit Started();
     }
@@ -29,7 +27,7 @@ namespace MumbleLib
     void MumbleLibrary::Stop()
     {
         StopMumbleThread();
-//        emit Stoped();
+        //emit Stoped();
     }
 
     bool MumbleLibrary::IsRunning()

@@ -251,7 +251,7 @@ namespace MumbleLib
         }
 
         QMutexLocker encoder_locker(&mutex_encoder_);
-        celt_encoder_ = celt_encoder_create(celt_mode_,MumbleVoip::NUMBER_OF_CHANNELS, NULL );
+        celt_encoder_ = celt_encoder_create_custom(celt_mode_,MumbleVoip::NUMBER_OF_CHANNELS, NULL );
         if (!celt_encoder_)
         {
             QString message = QString("Cannot create CELT encoder");
@@ -263,7 +263,7 @@ namespace MumbleLib
             return;
         }
         celt_encoder_ctl(celt_encoder_, CELT_SET_PREDICTION(0));
-	    celt_encoder_ctl(celt_encoder_, CELT_SET_VBR_RATE(BitrateForDecoder()));
+            celt_encoder_ctl(celt_encoder_, CELT_SET_BITRATE(BitrateForDecoder()));
 
         celt_decoder_ = CreateCELTDecoder();
 
@@ -285,7 +285,7 @@ namespace MumbleLib
     CELTDecoder* Connection::CreateCELTDecoder()
     {
         int error = 0;
-        CELTDecoder* decoder = celt_decoder_create(celt_mode_,MumbleVoip::NUMBER_OF_CHANNELS, &error);
+        CELTDecoder* decoder = celt_decoder_create_custom(celt_mode_,MumbleVoip::NUMBER_OF_CHANNELS, &error);
         switch (error)
         {
         case CELT_OK:
@@ -299,8 +299,14 @@ namespace MumbleLib
         case CELT_INTERNAL_ERROR:
             MumbleVoip::MumbleVoipModule::LogError("Cannot create CELT decoder: CELT_INTERNAL_ERROR");
             return 0;
+        case CELT_CORRUPTED_DATA:
+            MumbleVoip::MumbleVoipModule::LogError("Cannot create CELT decoder: CELT_CORRUPTED_DATA");
+            return 0;
         case CELT_UNIMPLEMENTED:
             MumbleVoip::MumbleVoipModule::LogError("Cannot create CELT decoder: CELT_UNIMPLEMENTED");
+            return 0;
+        case CELT_INVALID_STATE:
+            MumbleVoip::MumbleVoipModule::LogError("Cannot create CELT decoder: CELT_INVALID_STATE");
             return 0;
         case CELT_ALLOC_FAIL:
             MumbleVoip::MumbleVoipModule::LogError("Cannot create CELT decoder: CELT_ALLOC_FAIL");
@@ -411,8 +417,11 @@ namespace MumbleLib
         {
             MumbleVoip::PCMAudioFrame* audio_frame = encode_queue_.takeFirst();
 
-            int32_t len = celt_encode(celt_encoder_, reinterpret_cast<short *>(audio_frame->DataPtr()), NULL, encode_buffer_, std::min(BitrateForDecoder() / (100 * 8), 127));
-            memcpy(encoded_frame_data_[i], encode_buffer_, len);
+            int32_t len = celt_encode(celt_encoder_, reinterpret_cast<short *>(audio_frame->DataPtr()), MumbleVoip::SAMPLES_IN_FRAME, encode_buffer_, std::min(BitrateForDecoder() / (100 * 8), 127));
+
+            if(len > 0) /// \todo need proper error handling here
+                memcpy(encoded_frame_data_[i], encode_buffer_, len);
+
             encoded_frame_length_[i] = len;
             assert(len < ENCODE_BUFFER_SIZE_);
 
@@ -725,39 +734,61 @@ namespace MumbleLib
         }
 
         MumbleVoip::PCMAudioFrame* audio_frame = new MumbleVoip::PCMAudioFrame(MumbleVoip::SAMPLE_RATE, MumbleVoip::SAMPLE_WIDTH, MumbleVoip::NUMBER_OF_CHANNELS, MumbleVoip::SAMPLES_IN_FRAME*MumbleVoip::SAMPLE_WIDTH/8);
-        int ret = celt_decode(celt_decoder_, data, size, (short*)audio_frame->DataPtr());
+        int ret = celt_decode(celt_decoder_, data, size, (short*)audio_frame->DataPtr(), MumbleVoip::SAMPLES_IN_FRAME);
 
-        switch (ret)
+        if(ret > 0)
         {
-        case CELT_OK:
+            if (user->tryLock(5)) // 5 ms
             {
-                if (user->tryLock(5)) // 5 ms
-                {
-                    user->AddToPlaybackBuffer(audio_frame);
-                    user->unlock();
-                    return;
-                }
-                else
-                {
-                    MumbleVoip::MumbleVoipModule::LogWarning("Audio packet dropped: user object locked");
-                }
+                user->AddToPlaybackBuffer(audio_frame);
+                user->unlock();
+                return;
             }
-            break;
-        case CELT_BAD_ARG:
-            MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_BAD_ARG");
-            break;
-        case CELT_INVALID_MODE:
-            MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_INVALID_MODE");
-            break;
-        case CELT_INTERNAL_ERROR:
-            MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_INTERNAL_ERROR");
-            break;
-        case CELT_CORRUPTED_DATA:
-            MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_CORRUPTED_DATA");
-            break;
-        case CELT_UNIMPLEMENTED:
-            MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_UNIMPLEMENTED");
-            break;
+            else
+            {
+                MumbleVoip::MumbleVoipModule::LogWarning("Audio packet dropped: user object locked");
+            }
+        }
+        else
+        {
+            switch (ret)
+            {
+            case CELT_OK:
+                {
+                    if (user->tryLock(5)) // 5 ms
+                    {
+                        user->AddToPlaybackBuffer(audio_frame);
+                        user->unlock();
+                        return;
+                    }
+                    else
+                    {
+                        MumbleVoip::MumbleVoipModule::LogWarning("Audio packet dropped: user object locked");
+                    }
+                }
+                break;
+            case CELT_BAD_ARG:
+                MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_BAD_ARG");
+                break;
+            case CELT_INVALID_MODE:
+                MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_INVALID_MODE");
+                break;
+            case CELT_INTERNAL_ERROR:
+                MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_INTERNAL_ERROR");
+                break;
+            case CELT_CORRUPTED_DATA:
+                MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_CORRUPTED_DATA");
+                break;
+            case CELT_UNIMPLEMENTED:
+                MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_UNIMPLEMENTED");
+                break;
+            case CELT_INVALID_STATE:
+                MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_INVALID_STATE");
+                break;
+            case CELT_ALLOC_FAIL:
+                MumbleVoip::MumbleVoipModule::LogError("CELT decoding error: CELT_ALLOC_FAIL");
+                break;
+            }
         }
         delete audio_frame;
     }
@@ -773,7 +804,7 @@ namespace MumbleLib
         mutex_encoding_quality_.unlock();
 
         QMutexLocker encoder_locker(&mutex_encoder_);
-        celt_encoder_ctl(celt_encoder_, CELT_SET_VBR_RATE(BitrateForDecoder()));
+        celt_encoder_ctl(celt_encoder_, CELT_SET_BITRATE(BitrateForDecoder()));
     }
     
     int Connection::BitrateForDecoder()

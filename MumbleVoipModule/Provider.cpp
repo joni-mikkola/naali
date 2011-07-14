@@ -248,7 +248,7 @@ namespace MumbleVoip
        
         connect(channel, SIGNAL(destroyed(QObject*)), this, SLOT(OnECVoiceChannelDestroyed(QObject*)), Qt::UniqueConnection);
         connect(channel, SIGNAL(AttributeChanged(IAttribute *, AttributeChange::Type)), signal_mapper_, SLOT(map()), Qt::UniqueConnection);
-        signal_mapper_->setMapping(channel, QString::number(reinterpret_cast<unsigned int>(channel)));
+        signal_mapper_->setMapping(channel, QString::number(reinterpret_cast<intptr_t>(channel)));
 
         if (session_->GetChannels().contains(channel->getchannelname()))
             channel->setenabled(false); // We do not want to create multiple channels with a same name
@@ -266,7 +266,7 @@ namespace MumbleVoip
             session_->AddChannel(channel->getchannelname(), server_info);
 
         if (session_->GetActiveChannel() == "")
-            session_->SetActiveChannel(channel->Name());
+            session_->SetActiveChannel(channel->getchannelname());
     }
 
     void Provider::OnECVoiceChannelDestroyed(QObject* obj)
@@ -302,7 +302,7 @@ namespace MumbleVoip
 
         foreach(EC_VoiceChannel* channel, ec_voice_channels_)
         {
-            if (QString::number(reinterpret_cast<unsigned int>(channel)) != pointer)
+            if (QString::number(reinterpret_cast<intptr_t>(channel)) != pointer)
                 continue;
 
             /// @todo If user have edited the active channel -> close, reopen
@@ -322,6 +322,9 @@ namespace MumbleVoip
 
                 channel_names_[channel] = channel->getchannelname();
                 session_->AddChannel(channel->getchannelname(), server_info);
+
+                if(session_->GetActiveChannel() == "" && channel->getchannelname() != "")
+                    session_->SetActiveChannel(channel->getchannelname());
             }
             else
             {

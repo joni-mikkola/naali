@@ -189,7 +189,8 @@ macro (configure_ogre)
             link_directories (${DirectX_LIBRARY_DIR})
         else ()
             message (STATUS "DirectX not found!")
-            message (STATUS "-- Install DirextX SDK to enable additional features.")
+            message (STATUS "-- Install DirectX SDK to enable additional features. If you already have the DirectX SDK installed")
+            message (STATUS "   please set DIRECTX_ROOT env variable as your installation directory.")
         endif()
         message (STATUS "")
     endif ()
@@ -409,12 +410,46 @@ endif()
 endmacro (configure_vorbis)
 
 macro (configure_mumbleclient)
+    # Not in use currently, remove later if deemed unnecessary.
     sagase_configure_package(MUMBLECLIENT
         NAMES mumbleclient
         COMPONENTS mumbleclient client
         PREFIXES ${ENV_NAALI_DEP_PATH}/libmumbleclient)
     sagase_configure_report (MUMBLECLIENT)
 endmacro (configure_mumbleclient)
+
+macro(use_package_mumbleclient)
+    message (STATUS "** Configuring mumbleclient")
+    if (WIN32)
+        # This is a hack, would be better like it was earlier
+        # with configure_mumbleclient and use_package/link_package(MUMBLECLIENT)
+        sagase_configure_package(MUMBLECLIENT
+            NAMES mumbleclient
+            COMPONENTS mumbleclient client
+            PREFIXES ${ENV_NAALI_DEP_PATH}/libmumbleclient)
+        sagase_configure_report (MUMBLECLIENT)
+        
+        include_directories(${MUMBLECLIENT_INCLUDE_DIRS})
+        link_directories(${MUMBLECLIENT_LIBRARY_DIRS})
+    else()
+        if ("$ENV{MUMBLECLIENT_DIR}" STREQUAL "")
+            set(MUMBLECLIENT_DIR ${ENV_NAALI_DEP_PATH})
+        endif()
+        message (STATUS "-- Include Directories:")
+        message (STATUS "       " ${MUMBLECLIENT_DIR}/include/mumbleclient)
+        include_directories(${MUMBLECLIENT_DIR}/include/mumbleclient)
+        message (STATUS "-- Library Directories:")
+        message (STATUS "       " ${MUMBLECLIENT_DIR}/lib)
+        link_directories(${MUMBLECLIENT_DIR}/lib)
+    endif()
+endmacro()
+
+macro(link_package_mumbleclient)
+    target_link_libraries(${TARGET_NAME} optimized mumbleclient)
+    if (WIN32)
+        target_link_libraries(${TARGET_NAME} debug mumbleclientd)
+    endif ()
+endmacro()
 
 macro (configure_openssl)
     sagase_configure_package(OPENSSL
@@ -447,7 +482,9 @@ endmacro (configure_protobuf)
 macro (configure_celt)
     sagase_configure_package(CELT
         NAMES celt
-        COMPONENTS celt0 celt celt # for celt.h
+        COMPONENTS libcelt  # for libcelt
+                   celt0    # for old celt0 name (linux?)
+                   celt     # for celt.h
         PREFIXES ${ENV_NAALI_DEP_PATH}/celt)
     sagase_configure_report (CELT)
 endmacro (configure_celt)
@@ -501,7 +538,8 @@ macro(use_package_assimp)
            set(ASSIMP_DIR ${ENV_NAALI_DEP_PATH}/assimp)
         endif()
         include_directories(${ASSIMP_DIR}/include)
-        link_directories(${ASSIMP_DIR}/lib/assimp_debug_Win32)
+        link_directories(${ASSIMP_DIR}/lib) # VC10 deps way, no subfolders, dynamic
+        link_directories(${ASSIMP_DIR}/lib/assimp_debug_Win32) # VC9 deps way, in subfolder, static
         link_directories(${ASSIMP_DIR}/lib/assimp_release_Win32)
     else() # Linux, note: mac will also come here..
         if ("$ENV{ASSIMP_DIR}" STREQUAL "")

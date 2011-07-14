@@ -5,7 +5,6 @@
 
 #include "Channel.h"
 #include "MumbleVoipModule.h"
-#include "stdint.h"
 
 #define BUILDING_DLL // for dll import/export declarations
 #define CreateEvent CreateEventW // for \boost\asio\detail\win_event.hpp and \boost\asio\detail\win_iocp_handle_service.hpp
