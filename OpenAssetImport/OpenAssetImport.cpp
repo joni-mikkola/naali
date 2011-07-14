@@ -26,7 +26,7 @@
 #include <boost/tuple/tuple.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
- static int meshNum = 0;
+static int meshNum = 0;
 
 Ogre::String toString(const aiColor4D& colour)
 {
@@ -38,87 +38,87 @@ Ogre::String toString(const aiColor4D& colour)
 
 int OpenAssetImport::msBoneCount = 0;
 
-void fixMaterialReference(std::string &matRef, std::string addRef)
+void FixFileReference(QString &matRef, QString addRef)
+{
+    addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
+    addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
+    addRef = addRef.remove(0, addRef.lastIndexOf('/')+1);
+    addRef.insert(0, "file://");
+    addRef.insert(addRef.length(), "/images/");
+
+    size_t indx = matRef.indexOf("texture ", 0);
+    matRef.replace(indx+8, 0, addRef + '/');
+}
+
+void FixHttpReference(QString &matRef, QString addRef)
 {
     addRef.replace(0, 7, "http://");
-
+    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     for (uint i = 0; i < addRef.length(); ++i)
-        if (addRef[i] == '_') addRef[i] = '/';
+        if (addRef[i].toAscii() == '_') addRef[i] = '/';
 
-    size_t tmp = addRef.find_last_of('/')+1;
-    addRef.erase(tmp, addRef.length() - tmp);
+    size_t tmp = addRef.lastIndexOf('/')+1;
+    addRef.remove(tmp, addRef.length() - tmp);
+    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
 
-    size_t indx = matRef.find("texture ", 0);
+    addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
+    addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
+    addRef.insert(addRef.length(), "/images/");
+     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
+    size_t indx = matRef.indexOf("texture ", 0);
     matRef.replace(indx+8, 0, addRef);
 }
 
-OpenAssetImport::OpenAssetImport()
-{
-    //mSkeletonRootNode = NULL;
-}
-
-OpenAssetImport::~OpenAssetImport()
-{
-}
 
 
-
-bool OpenAssetImport::convert(unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat, std::string addr)
+bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
     meshNum = 0;
-    //dummyMatCount = 0;
-    mLoaderParams = loaderParams;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
     {
         mNodeDerivedTransformByName.clear();
     }
-
+    
     Assimp::DefaultLogger::create("asslogger.log",Assimp::Logger::VERBOSE);
-    Assimp::DefaultLogger::get()->info("Logging asses");
 
-    Ogre::LogManager::getSingleton().logMessage("*** Loading ass file... ***");
     //Ogre::LogManager::getSingleton().logMessage("Filename " + filename);
 
+    this->addr = addr;
     const aiScene *scene;
 
     Assimp::Importer importer;
-
-    //scene = importer.ReadFile( filename.c_str(), aiProcessPreset_TargetRealtime_Quality | aiProcess_TransformUVCoords | aiProcess_FlipUVs);
 
     // by default remove points and lines from the model, since these are usually
     // degenerate structures from bad modelling or bad import/export.  if they
     // are needed it can be turned on with IncludeLinesPoints
     int removeSortFlags = importer.GetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE);
-    dontGenMaterials = noMat;
+    this->generateMaterials = generateMaterials;
     removeSortFlags |= aiPrimitiveType_POINT | aiPrimitiveType_LINE;
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
+
+    importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
+    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
+
 
     // And have it read the given file with some example postprocessing
     // Usually - if speed is not the most important aspect for you - you'll
     // propably to request more postprocessing than we do in this example.
-    //Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
-    scene = importer.ReadFileFromMemory(fileData, numBytes, 0
-                                        |aiProcess_SplitLargeMeshes
-                                        //aiProcess_MakeLeftHanded
-                                        | aiProcess_Triangulate
-                                        | aiProcess_FlipUVs
-                                        | aiProcess_FindInvalidData
-                                        //  | aiProcess_FlipWindingOrder
-                                        | aiProcess_FixInfacingNormals
-                                        //| aiProcess_TransformUVCoords
-                                        // | aiProcess_GenUVCoords
-                                        | aiProcess_JoinIdenticalVertices
-                                        | aiProcess_PreTransformVertices
-                                        | aiProcess_OptimizeMeshes
-                                        | aiProcess_RemoveRedundantMaterials
-                                        | aiProcess_ImproveCacheLocality
-                                        | aiProcess_LimitBoneWeights
-                                        //| aiProcess_FindDegenerates
-                                        //| aiProcess_SortByPType
-                                        );
-
-
+    scene = importer.ReadFile(filename, 0 //aiProcessPreset_TargetRealtime_MaxQuality |  aiProcess_PreTransformVertices);/*
+                              | aiProcess_SplitLargeMeshes
+                              | aiProcess_FindInvalidData
+                              | aiProcess_GenNormals
+                              | aiProcess_Triangulate
+                              | aiProcess_GenUVCoords
+                              | aiProcess_FlipUVs
+                              | aiProcess_JoinIdenticalVertices
+                              | aiProcess_PreTransformVertices
+                              | aiProcess_OptimizeMeshes
+                              | aiProcess_RemoveRedundantMaterials
+                              | aiProcess_ImproveCacheLocality
+                              | aiProcess_LimitBoneWeights
+                              | aiProcess_SortByPType
+                              );
 
     // If the import failed, report it
     if( !scene)
@@ -185,7 +185,7 @@ bool OpenAssetImport::convert(unsigned char * fileData, size_t numBytes, int loa
             Ogre::SubMesh* sm = smIt.getNext();
             if (!sm->useSharedVertices)
             {
-                // Automatic
+                // AutogreMaterialic
                 Ogre::VertexDeclaration* newDcl =
                         sm->vertexData->vertexDeclaration->getAutoOrganisedDeclaration(mMesh->hasSkeleton(), mMesh->hasVertexAnimation(), false);
                 if (*newDcl != *(sm->vertexData->vertexDeclaration))
@@ -198,20 +198,14 @@ bool OpenAssetImport::convert(unsigned char * fileData, size_t numBytes, int loa
                 }
             }
         }
-
-        //meshSer.exportMesh(mMesh.getPointer(), "/home/joni/QT/naali/bin/scenes/TestScene_2/test.mesh");
-
-        //return true;
     }
 
-    //matList.clear();
-    //matNameList.clear();
+    QString fileLocation = addr;
 
-    QString fileLocation = addr.c_str();
-
-    if(!noMat)///*mLoaderParams & */!LP_GENERATE_MATERIALS_AS_CODE)
+    if(generateMaterials)
     {
         Ogre::MaterialSerializer ms;
+
 
         std::vector<Ogre::String> exportedNames;
         int tick = 0;
@@ -232,22 +226,25 @@ bool OpenAssetImport::convert(unsigned char * fileData, size_t numBytes, int loa
                     Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
                     ms.queueForExport(materialPtr, true);
 
-                    std::string materialInfo = ms.getQueuedAsString();
+                    QString materialInfo = ms.getQueuedAsString().c_str();
 
-                    if (materialInfo.find("texture ") != std::string::npos && addr.find("http", 0) != std::string::npos)
-                        fixMaterialReference(materialInfo, addr);
+
+                    if (materialInfo.contains("texture "))
+                    {
+                        if (addr.startsWith("http"))
+                            FixHttpReference(materialInfo, addr);
+                        else
+                            FixFileReference(materialInfo, addr);
+                    }
 
                     QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
 
-                    Ogre::LogManager::getSingleton().logMessage("OAI: " + parsedRef.toStdString());
-                     Ogre::LogManager::getSingleton().logMessage(materialInfo);
-
                     if (fileLocation.startsWith("http"))
-                        matList[fileLocation.toStdString() + "#" + sm->getMaterialName() + ".material"] = materialInfo;
+                        matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
                     else
-                        matList[parsedRef.toStdString() + "#" + sm->getMaterialName() + ".material"] = materialInfo;
-                    matNameList.push_back(sm->getMaterialName() + ".material");
+                        matList[parsedRef + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
 
+                    matNameList.push_back(sm->getMaterialName() + ".material");
                 }
             }
         }
@@ -263,6 +260,7 @@ bool OpenAssetImport::convert(unsigned char * fileData, size_t numBytes, int loa
     mCustomAnimationName = "";
     // etc...
 
+    // Ogre::MaterialManager::getSingleton().
     Ogre::MeshManager::getSingleton().removeUnreferencedResources();
     Ogre::SkeletonManager::getSingleton().removeUnreferencedResources();
 
@@ -635,53 +633,10 @@ void OpenAssetImport::createBonesFromNode(const aiScene* mScene,  const aiNode *
         aiVector3D pos;
         aiVector3D scale;
 
-        /*
-                aiMatrix4x4 aiM = mNodeDerivedTransformByName.find(pNode->mName.data)->second;
-
-                const aiNode* parentNode = NULL;
-                {
-                        boneMapType::iterator it = boneMap.find(pNode->mName.data);
-                        if(it != boneMap.end())
-                        {
-                                parentNode = it->second.parent;
-                        }
-                }
-                if(parentNode)
-                {
-                        aiMatrix4x4 aiMParent = mNodeDerivedTransformByName.find(parentNode->mName.data)->second;
-                        aiM = aiMParent.Inverse() * aiM;
-                }
-                */
-
         // above should be the same as
         aiMatrix4x4 aiM = pNode->mTransformation;
 
         aiM.Decompose(scale, rot, pos);
-
-
-        /*
-                // debug render
-                Ogre::SceneNode* sceneNode = NULL;
-                if(parentNode)
-                {
-                        Ogre::SceneNode* parent = static_cast<Ogre::SceneNode*>(
-                                GOOF::NodeUtils::GetNodeMatch(getSceneManager()->getRootSceneNode(), parentNode->mName.data, false));
-                        assert(parent);
-                        sceneNode = parent->createChildSceneNode(pNode->mName.data);
-                }
-                else
-                {
-                        sceneNode = getSceneManager()->getRootSceneNode()->createChildSceneNode(pNode->mName.data);
-                }
-
-                sceneNode->setScale(scale.x, scale.y, scale.z);
-                sceneNode->setPosition(pos.x, pos.y, pos.z);
-                sceneNode->setOrientation(rot.w, rot.x, rot.y, rot.z);
-
-                sceneNode = sceneNode->createChildSceneNode();
-                sceneNode->setScale(0.01, 0.01, 0.01);
-                sceneNode->attachObject(getSceneManager()->createEntity("Box1m.mesh"));
-                */
 
         if (!aiM.IsIdentity())
         {
@@ -751,7 +706,7 @@ bool OpenAssetImport::isNodeNeeded(const char* name)
 
 void OpenAssetImport::grabBoneNamesFromNode(const aiScene* mScene,  const aiNode *pNode)
 {
-
+    assert(pNode);
     meshNum++;
     if(pNode->mNumMeshes > 0)
     {
@@ -825,10 +780,10 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     static int dummyMatCount = 0;
 
     // extreme fallback texture -- 2x2 hot pink
-    Ogre::uint8 s_RGB[] = {128, 0, 255, 128, 0, 255, 128, 0, 255, 128, 0, 255};
+    Ogre::uint8 s_RGB[] = {0, 0, 0, 128, 0, 255, 128, 0, 255, 128, 0, 255};
 
     std::ostringstream matname;
-    Ogre::MaterialManager* omatMgr =  Ogre::MaterialManager::getSingletonPtr();
+    Ogre::MaterialManager* ogreMaterialMgr =  Ogre::MaterialManager::getSingletonPtr();
     enum aiTextureType type = aiTextureType_DIFFUSE;
     aiString path;
     aiTextureMapping mapping = aiTextureMapping_UV;       // the mapping (should be uv for now)
@@ -840,70 +795,75 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
 
     aiString szPath;
 
-
     if(AI_SUCCESS == aiGetMaterialString(mat, AI_MATKEY_TEXTURE_DIFFUSE(0), &szPath))
     {
         Ogre::LogManager::getSingleton().logMessage("Using aiGetMaterialString : Found texture " + Ogre::String(szPath.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
     }
-    if(szPath.length < 1 && !dontGenMaterials)
+    if(szPath.length < 1 && generateMaterials)
     {
         Ogre::LogManager::getSingleton().logMessage("Didn't find any texture units...");
         szPath = Ogre::String("dummyMat" + Ogre::StringConverter::toString(dummyMatCount)).c_str();
         dummyMatCount++;
     }
 
-
-
-
     Ogre::String basename;
     Ogre::String outPath;
     Ogre::StringUtil::splitFilename(Ogre::String(szPath.data), basename, outPath);
-    Ogre::LogManager::getSingleton().logMessage("Creating " + basename);
+    Ogre::LogManager::getSingleton().logMessage("Creating " + addr.toStdString());
 
-    Ogre::ResourceManager::ResourceCreateOrRetrieveResult status = omatMgr->createOrRetrieve(ReplaceSpaces(basename), "General", true);
-    Ogre::MaterialPtr omat = status.first;
+    Ogre::ResourceManager::ResourceCreateOrRetrieveResult status = ogreMaterialMgr->createOrRetrieve(ReplaceSpaces(basename), "General", true);
+    Ogre::MaterialPtr ogreMaterial = status.first;
     if (!status.second)
-        return omat;
+        return ogreMaterial;
 
     // ambient
     aiColor4D clr(1.0f, 1.0f, 1.0f, 1.0);
     //Ambient is usually way too low! FIX ME!
     if (mat->GetTexture(type, 0, &path) != AI_SUCCESS)
         aiGetMaterialColor(mat, AI_MATKEY_COLOR_AMBIENT,  &clr);
-    omat->setAmbient(clr.r, clr.g, clr.b);
-
+    ogreMaterial->setAmbient(clr.r, clr.g, clr.b);
 
     // diffuse
     clr = aiColor4D(1.0f, 1.0f, 1.0f, 1.0f);
     if(AI_SUCCESS == aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &clr))
     {
-        omat->setDiffuse(clr.r, clr.g, clr.b, clr.a);
+        ogreMaterial->setDiffuse(clr.r, clr.g, clr.b, clr.a);
     }
 
     // specular
     clr = aiColor4D(1.0f, 1.0f, 1.0f, 1.0f);
     if(AI_SUCCESS == aiGetMaterialColor(mat, AI_MATKEY_COLOR_SPECULAR, &clr))
     {
-        omat->setSpecular(clr.r, clr.g, clr.b, clr.a);
+        ogreMaterial->setSpecular(clr.r, clr.g, clr.b, clr.a);
     }
 
     // emissive
     clr = aiColor4D(1.0f, 1.0f, 1.0f, 1.0f);
     if(AI_SUCCESS == aiGetMaterialColor(mat, AI_MATKEY_COLOR_EMISSIVE, &clr))
     {
-        omat->setSelfIllumination(clr.r, clr.g, clr.b);
+        ogreMaterial->setSelfIllumination(clr.r, clr.g, clr.b);
     }
-
-
 
     float fShininess;
     if(AI_SUCCESS == aiGetMaterialFloat(mat, AI_MATKEY_SHININESS, &fShininess))
     {
-        omat->setShininess(Ogre::Real(fShininess));
+        ogreMaterial->setShininess(Ogre::Real(fShininess));
     }
+
+    int two_sided;
+    aiGetMaterialInteger(mat, AI_MATKEY_TWOSIDED, &two_sided);
+
+    if (two_sided != 0)
+        ogreMaterial->setCullingMode(Ogre::CULL_NONE);
+
+    ogreMaterial->setReceiveShadows(true);
 
     if (mat->GetTexture(type, 0, &path) == AI_SUCCESS)
     {
+        //hack for showing up back and front faces when loading material containing texture
+        //it's working for 3d warehouse models though the problem is probably in the models
+        ogreMaterial->setCullingMode(Ogre::CULL_NONE);
+
         Ogre::LogManager::getSingleton().logMessage("Found texture " + Ogre::String(path.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
         if(AI_SUCCESS == aiGetMaterialString(mat, AI_MATKEY_TEXTURE_DIFFUSE(0), &szPath))
         {
@@ -930,7 +890,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
             {
                 // fall back to our very simple and very hardcoded hot-pink version
                 Ogre::DataStreamPtr altStrm(OGRE_NEW Ogre::MemoryDataStream(s_RGB, sizeof(s_RGB)));
-                image.loadRawData(altStrm, 2, 2, Ogre::PF_R8G8B8);
+                image.loadRawData(altStrm, 2, 2, Ogre::PF_B8G8R8);
                 Ogre::LogManager::getSingleton().logMessage("Could not load texture, falling back to hotpink");
             } else
             {
@@ -949,16 +909,12 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
         //szPath.Set("/home/joni/AssImpTesting/SkeletalAnimation/boy_10.tga");
         Ogre::TextureManager::getSingleton().loadImage(Ogre::String(szPath.data), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, image);
         //TODO: save this to materials/textures ?
-        Ogre::TextureUnitState* texUnitState = omat->getTechnique(0)->getPass(0)->createTextureUnitState(basename);
+        Ogre::TextureUnitState* texUnitState = ogreMaterial->getTechnique(0)->getPass(0)->createTextureUnitState(basename);
 
     }
-    omat->load();
-    return omat;
+    ogreMaterial->load();
+    return ogreMaterial;
 }
-
-
-
-
 
 bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const aiNode* pNode, const aiMesh *mesh, const aiMaterial* mat, Ogre::MeshPtr mMesh, Ogre::AxisAlignedBox& mAAB, const Ogre::String& mDir)
 {
@@ -971,14 +927,9 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
 
     Ogre::MaterialPtr matptr;
 
-    if(mLoaderParams & !LP_GENERATE_MATERIALS_AS_CODE)
+    if(generateMaterials)
     {
         matptr = createMaterial(mesh->mMaterialIndex, mat, mDir);
-    }
-    else
-    {
-        matptr = createMaterial(mesh->mMaterialIndex, mat, mDir);
-        //matptr = createMaterialByScript(mesh->mMaterialIndex, mat);
     }
 
     // now begin the object definition
@@ -1019,16 +970,6 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
         offset += declaration->addElement(source,offset,Ogre::VET_FLOAT2,Ogre::VES_TEXTURE_COORDINATES).getSize();
     }
 
-    /*
-        if (col)
-        {
-                Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(mesh->mNumVertices) + " colours");
-                //mLog->logMessage((boost::format(" %d colours ") % m->mNumVertices).str() );
-                offset += declaration->addElement(source,offset,Ogre::VET_FLOAT3,Ogre::VES_DIFFUSE).getSize();
-        }
-        */
-
-
     // We create the hardware vertex buffer
     Ogre::HardwareVertexBufferSharedPtr vbuffer =
             Ogre::HardwareBufferManager::getSingleton().createVertexBuffer(declaration->getVertexSize(source), // == offset
@@ -1050,13 +991,6 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
 
         vect *= aiM;
 
-        /*
-        if(NULL != mSkeletonRootNode)
-        {
-            vect *= mSkeletonRootNode->mTransformation;
-        }
-                */
-
         Ogre::Vector3 position( vect.x, vect.y, vect.z );
         *vdata++ = vect.x;
         *vdata++ = vect.y;
@@ -1077,11 +1011,6 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
             *vdata++ = vect.y;
             *vdata++ = vect.z;
             norm++;
-
-            //*vdata++ = norm->x;
-            //*vdata++ = norm->y;
-            //*vdata++ = norm->z;
-            //norm++;
         }
 
         // uvs
@@ -1091,17 +1020,6 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
             *vdata++ = uv->y;
             uv++;
         }
-
-        /*
-                if (col)
-                {
-                        *vdata++ = col->r;
-                        *vdata++ = col->g;
-                        *vdata++ = col->b;
-                        //*vdata++ = col->a;
-                        //col++;
-                }
-                */
     }
 
     vbuffer->unlock();
@@ -1155,7 +1073,8 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
     } // if mesh has bones
 
     // Finally we set a material to the submesh
-    submesh->setMaterialName(matptr->getName());
+    if (generateMaterials)
+        submesh->setMaterialName(matptr->getName());
 
     return true;
 }
@@ -1167,18 +1086,15 @@ void OpenAssetImport::loadDataFromNode(const aiScene* mScene,  const aiNode *pNo
         Ogre::MeshPtr mesh;
         Ogre::AxisAlignedBox mAAB;
 
-        if(mLoaderParams & LP_GENERATE_SINGLE_MESH)
+        if(mMeshes.size() == 0)
         {
-            if(mMeshes.size() == 0)
-            {
-                mesh = Ogre::MeshManager::getSingleton().createManual("ROOTMesh", "General");
-                mMeshes.push_back(mesh);
-            }
-            else
-            {
-                mesh = mMeshes[0];
-                mAAB = mesh->getBounds();
-            }
+            mesh = Ogre::MeshManager::getSingleton().createManual("ROOTMesh", "General");
+            mMeshes.push_back(mesh);
+        }
+        else
+        {
+            mesh = mMeshes[0];
+            mAAB = mesh->getBounds();
         }
 
         for ( int idx=0; idx<pNode->mNumMeshes; ++idx )
@@ -1187,7 +1103,9 @@ void OpenAssetImport::loadDataFromNode(const aiScene* mScene,  const aiNode *pNo
             //if pAIMesh->
             Ogre::LogManager::getSingleton().logMessage("SubMesh " + Ogre::StringConverter::toString(idx) + " for mesh '" + Ogre::String(pNode->mName.data) + "'");
 
+
             // Create a material instance for the mesh.
+            
             const aiMaterial *pAIMaterial = mScene->mMaterials[ pAIMesh->mMaterialIndex ];
             createSubMesh(pNode->mName.data, idx, pNode, pAIMesh, pAIMaterial, mesh, mAAB, mDir);
         }

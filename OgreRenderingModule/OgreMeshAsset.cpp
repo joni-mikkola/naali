@@ -44,7 +44,6 @@ AssetLoadState OgreMeshAsset::DeserializeFromData(const u8 *data_, size_t numByt
         // local:// refs will return empty string here and those will fall back to the non-threaded loading.
         // Do not change this to do DiskCache() as that directory for local:// refs will not be a known resource location for ogre.
         QString cacheDiskSource = assetAPI->GetAssetCache()->GetDiskSource(QUrl(Name()));
-        LogInfo(cacheDiskSource.toStdString());
         if (!cacheDiskSource.isEmpty() && !cacheDiskSource.contains("http"))
         {
             QFileInfo fileInfo(cacheDiskSource);

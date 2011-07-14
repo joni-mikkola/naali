@@ -207,17 +207,13 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         //if (lastSlash != -1)
         //   ref = ref.left(lastSlash);
 
-        AssetModule::LogInfo(ref.toStdString());
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
-
-        AssetModule::LogInfo(path.toStdString());
 
         if (path.isEmpty() && !ref.contains("#"))
         {
             QString reason = "Failed to find local asset with filename \"" + ref + "\"!";
 //            AssetModule::LogWarning(reason.toStdString());
-            AssetModule::LogInfo("we're failing");
             framework->Asset()->AssetTransferFailed(transfer.get(), reason);
             continue;
         }

@@ -19,6 +19,7 @@ use_modules(Core Foundation Interfaces Ui)
 build_library(${TARGET_NAME} STATIC ${SOURCE_FILES} ${MOC_SRCS})
 
 add_definitions(-DASSET_API_EXPORTS)
+GetOpenAssetImport()
 link_package(BOOST)
 link_package(POCO)
 link_package(QT4)

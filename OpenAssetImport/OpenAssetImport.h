@@ -8,6 +8,7 @@
 #include <assimp/aiScene.h>
 #include <assimp/aiPostProcess.h>
 #include <map>
+#include <QString>
 //#include "GOOFSharedFrameworkData.h"
 
 //TODO: only need a bool ?
@@ -35,22 +36,21 @@ public:
         // when 3ds max exports as DAE it gets some of the transforms wrong, get around this by using
         // this option and a prior run with of the model exported as ASE
         LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS = 1<<3
-                                              };
+    };
 
-    OpenAssetImport();
-    ~OpenAssetImport();
 
     // customAnimationName is only applied if the skeleton only has one animation
 
-    bool convert(unsigned char * fileData, size_t numBytes, int loaderParams, bool noMat = false, std::string addr = "");
-    bool dontGenMaterials;
+    bool convert(const Ogre::String& filename, bool generateMaterials, QString addr = "");
+
     Ogre::MeshPtr mMesh;
-    std::string addr;
-    std::map<std::string, std::string> matList;
+    std::map<QString, QString> matList;
     std::vector<std::string> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
 
 private:
+    QString addr;
+    bool generateMaterials;
     bool createSubMesh(const Ogre::String& name, int index, const aiNode* pNode, const aiMesh *mesh, const aiMaterial* mat, Ogre::MeshPtr pMesh, Ogre::AxisAlignedBox& mAAB, const Ogre::String& mDir);
     Ogre::MaterialPtr createMaterial(int index, const aiMaterial* mat, const Ogre::String& mDir);
     Ogre::MaterialPtr createMaterialByScript(int index, const aiMaterial* mat);
