@@ -223,9 +223,15 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         bool success;
 
+
         if (ref.contains("#")) 
+        {
+#ifdef ASSIMP_ENABLED
             success = LoadMaterialInfo(ref, transfer->rawAssetData, framework->Asset()->materialMap);
+#endif
+        }
         else
+
             success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
 
         if (!success)

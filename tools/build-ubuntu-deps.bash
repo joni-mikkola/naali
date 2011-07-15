@@ -38,20 +38,6 @@ export CC="ccache gcc"
 export CXX="ccache g++"
 export CCACHE_DIR=$deps/ccache
 
-if lsb_release -c | egrep -q "lucid|maverick|natty"; then
-        which aptitude > /dev/null 2>&1 || sudo apt-get install aptitude
-	sudo aptitude -y install scons python-dev libogg-dev libvorbis-dev \
-	 libopenjpeg-dev libcurl4-gnutls-dev libexpat1-dev libphonon-dev \
-	 build-essential g++ libogre-dev libboost-all-dev libpoco-dev \
-	 ccache libqt4-dev python-dev \
-	 freeglut3-dev \
-	 libxmlrpc-epi-dev bison flex libxml2-dev cmake libalut-dev \
-	 liboil0.3-dev mercurial unzip xsltproc libqtscript4-qtbindings
-fi
-	 #python-gtk2-dev libdbus-glib-1-dev \
-         #libtelepathy-farsight-dev libnice-dev libgstfarsight0.10-dev \
-         #libtelepathy-qt4-dev python-gst0.10-dev \ 
-
 function build-regular {
     urlbase=$1
     shift
@@ -77,6 +63,20 @@ function build-regular {
     fi
 }
 
+what=Assimp
+if test -f $tags/what-done; then
+	echo $what is done
+else
+	cd $build
+	rm -fr $what
+	git clone git://github.com/assimp/assimp.git $what
+	cd $what
+	cmake -DCMAKE_INSTALL_PREFIX=$prefix .
+	make -j $nprocs
+	make install
+	touch $tags/$what-done
+fi
+	
 what=bullet-2.77
 if test -f $tags/$what-done; then
     echo $what is done
@@ -121,7 +121,7 @@ cp -lf $build/$what/plugins/script/* $viewer/bin/qtscript-plugins/script/
 
 
 what=knet
-if false && test -f $tags/$what-done; then 
+if test -f $tags/$what-done; then 
    echo $what is done
 else
     cd $build

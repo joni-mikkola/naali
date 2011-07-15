@@ -17,9 +17,6 @@
 #include <Ogre.h>
 #include <OgreTagPoint.h>
 
-
-#include "LocalAssetProvider.h"
-
 #include "LoggingFunctions.h"
 DEFINE_POCO_LOGGING_FUNCTIONS("EC_Mesh")
 
@@ -1015,6 +1012,7 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         return;
     }
 
+#ifdef ASSIMP_ENABLED
     if (IsAssimpSupported(asset->DiskSource()))
     {
         // Create reference list for materials which to add to the scene
@@ -1023,12 +1021,13 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         QString fileLocation = asset->DiskSource();
         QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
         // Loop through material list and insert each material separated with '#' from filename
-        std::vector<QString> vektori = framework_->Asset()->materialOrderMap[asset->DiskSource()];
-        for (int i = 0; i < vektori.size(); i++)
-            refList.Append(AssetReference(parsedRef + "#" + vektori[i]));
+        std::vector<QString> materialVector = framework_->Asset()->materialIndexMap[asset->DiskSource()];
+        for (int i = 0; i < materialVector.size(); i++)
+            refList.Append(AssetReference(parsedRef + "#" + materialVector[i]));
 
         meshMaterial.Set(refList, AttributeChange::Default);
     }
+#endif
 
     QString ogreMeshName = mesh->Name();
     if (mesh)

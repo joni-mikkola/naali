@@ -42,9 +42,9 @@
 
 DEFINE_POCO_LOGGING_FUNCTIONS("SceneStructure");
 
-/*#ifdef ASSIMP_ENABLED
-#include <OpenAssetImport.h>
-#endif*/
+#ifdef ASSIMP_ENABLED
+#include <../OpenAssetImport/OpenAssetImport.h>
+#endif
 
 //#include <OgreCamera.h>
 
@@ -176,28 +176,26 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
         }
         else
         {
-/*#ifdef ASSIMP_ENABLED
+#ifdef ASSIMP_ENABLED
             boost::filesystem::path path(filename.toStdString());
-            AssImp::OpenAssetImport assimporter;
+            OpenAssetImport::OpenAssetImport assimporter;
             QString extension = QString(path.extension().c_str()).toLower();
             if (assimporter.IsSupportedExtension(extension))
             {
                 std::string dirname = path.branch_path().string();
-                std::vector<AssImp::MeshData> meshNames;
-                assimporter.GetMeshData(filename, meshNames);
-
+                LogInfo(dirname);
                 TundraLogic::SceneImporter sceneimporter(scene);
-                for (size_t i=0 ; i<meshNames.size() ; ++i)
-                {
-                    Scene::EntityPtr entity = sceneimporter.ImportMesh(meshNames[i].file_.toStdString(), dirname, meshNames[i].transform_,
-                        std::string(), "local://", AttributeChange::Default, false, meshNames[i].name_.toStdString());
-                    if (entity)
-                        ret.append(entity.get());
-                }
+
+                Transform worldtransform;
+
+                Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString(), dirname, worldtransform,
+                    std::string(), "local://", AttributeChange::Default, false, "");
+                if (entity)
+                    ret.append(entity.get());
 
                 return ret;
             }
-#endif*/
+#endif
         }
     }
 
@@ -257,20 +255,21 @@ bool SceneStructureModule::IsSupportedFileType(const QString &fileRef)
     if (fileRef.endsWith(cTundraXmlFileExtension, Qt::CaseInsensitive) ||
         fileRef.endsWith(cTundraBinFileExtension, Qt::CaseInsensitive) ||
         fileRef.endsWith(cOgreMeshFileExtension, Qt::CaseInsensitive) ||
-        fileRef.endsWith(cOgreSceneFileExtension, Qt::CaseInsensitive))
+        fileRef.endsWith(cOgreSceneFileExtension, Qt::CaseInsensitive) ||
+        fileRef.endsWith(cColladaFileExtension, Qt::CaseInsensitive))
     {
         return true;
     }
     else
     {
-/*#ifdef ASSIMP_ENABLED
+#ifdef ASSIMP_ENABLED
         boost::filesystem::path path(fileRef.toStdString());
-        AssImp::OpenAssetImport assimporter;
+        OpenAssetImport::OpenAssetImport assimporter;
         QString extension = QString(path.extension().c_str()).toLower();
         if (assimporter.IsSupportedExtension(extension))
             return true;
-#endif*/
         return false;
+#endif
     }
 }
 

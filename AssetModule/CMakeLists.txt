@@ -18,6 +18,7 @@ use_modules (Core Foundation Interfaces Asset Console)
 
 build_library (${TARGET_NAME} SHARED ${SOURCE_FILES} ${MOC_SRCS})
 
+GetOpenAssetImport()
 link_modules(Core Foundation Interfaces Asset Console)
 
 SetupCompileFlagsWithPCH()

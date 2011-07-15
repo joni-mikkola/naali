@@ -31,7 +31,6 @@ AssetLoadState OgreMaterialAsset::DeserializeFromData(const u8 *data_, size_t nu
         return ASSET_LOAD_FAILED;
 
     const std::string assetName = this->Name().toStdString();
-
     Ogre::MaterialManager& matmgr = Ogre::MaterialManager::getSingleton(); 
     OgreRenderingModule::LogDebug("Parsing material " + assetName);
     
@@ -94,7 +93,6 @@ AssetLoadState OgreMaterialAsset::DeserializeFromData(const u8 *data_, size_t nu
                             std::string tex_name = QString(line.substr(8).c_str()).trimmed().toStdString();
                             ///\todo The design of whether the LookupAssetRefToStorage should occur here, or internal to Asset API needs to be revisited.
                             QString absolute_tex_name = assetAPI->LookupAssetRefToStorage(tex_name.c_str());
-
                             references_.push_back(AssetReference(absolute_tex_name));
                             // Sanitate the asset ID
                             line = "texture " + SanitateAssetIdForOgre(absolute_tex_name.toStdString());
@@ -172,6 +170,7 @@ AssetLoadState OgreMaterialAsset::DeserializeFromData(const u8 *data_, size_t nu
 
     } catch (Ogre::Exception &e)
     {
+        LogWarning("DeserializeFromData: Failed to parse Ogre material " + assetName + ", reason: " + std::string(e.what()));
         //QString tmpAssetName = assetName.c_str();
         //if (!QString(tmpAssetName).contains("#"))
             LogWarning("DeserializeFromData: Failed to parse Ogre material " + assetName + ", reason: " + std::string(e.what()));

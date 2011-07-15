@@ -1,8 +1,5 @@
 // For conditions of distribution and use, see copyright notice in license.txt
 
-#include "../OpenAssetImport/OpenAssetImport.h"
-#include "OgreMeshSerializer.h"
-
 #include "DebugOperatorNew.h"
 #include <boost/thread.hpp>
 #include <boost/algorithm/string.hpp>
@@ -18,7 +15,6 @@
 #include "LoggingFunctions.h"
 #include "EventManager.h"
 #include "CoreException.h"
-#include "map"
 #include "IAssetTypeFactory.h"
 #include "IAssetUploadTransfer.h"
 #include "GenericAssetFactory.h"
@@ -26,6 +22,10 @@
 #include "Platform.h"
 #include <QDir>
 #include <QFileSystemWatcher>
+
+#ifdef ASSIMP_ENABLED
+#include "../OpenAssetImport/OpenAssetImport.h"
+#endif
 
 DEFINE_POCO_LOGGING_FUNCTIONS("Asset")
 
@@ -835,22 +835,6 @@ QString GuaranteeTrailingSlash(const QString &source)
     return s;
 }
 
-bool IsAssimpSupported(const QString &filename)
-{
-    const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
-        ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
-        ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
-        ".ply", ".cob", ".scn" };
-
-    int numSuffixes = NUMELEMS(openAssImpFileTypes);
-
-    for(int i = 0;i < numSuffixes; ++i)
-        if (filename.endsWith(openAssImpFileTypes[i]))
-            return true;
-
-    return false;
-}
-
 void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 {
     // At this point, the transfer can originate from several different things:
@@ -876,7 +860,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 
     // We should be tracking this transfer in an internal data structure.
     AssetTransferMap::iterator iter = currentTransfers.find(transfer->source.ref);
-    //DAE CHECK
+
     if (iter == currentTransfers.end() && !transfer->source.ref.contains("#"))
         LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
 
@@ -903,6 +887,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 
     AssetLoadState loadState;
 
+#ifdef ASSIMP_ENABLED
     if (IsAssimpSupported(transfer->asset->DiskSource()))
     {
         QString tmpString = transfer->asset->DiskSource();
@@ -926,7 +911,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 
         // Store all the material stuff into a map
         this->materialMap.insert(import.matList.begin(), import.matList.end());
-        this->materialOrderMap[transfer->asset->DiskSource()] = import.matNameList;
+        this->materialIndexMap[transfer->asset->DiskSource()] = import.matNameList;
 
         Ogre::MeshSerializer serializer;
         QString tempFilename = "tmp.mesh";
@@ -934,6 +919,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
         LoadFileToVector(tempFilename.toStdString().c_str(), transfer->rawAssetData);
         QFile::remove(tempFilename); // Delete the temporary file we used for serialization.
     }
+#endif
 
     loadState = transfer->asset->LoadFromFileInMemory(&transfer->rawAssetData[0], transfer->rawAssetData.size());
 
@@ -1227,9 +1213,21 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
     }
 }
 
-bool LoadAssimpMesh(QString &ref, std::vector<u8> &dst)
+#ifdef ASSIMP_ENABLED
+bool IsAssimpSupported(const QString &filename)
 {
+    const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
+        ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
+        ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
+        ".ply", ".cob", ".scn" };
 
+    int numSuffixes = NUMELEMS(openAssImpFileTypes);
+
+    for(int i = 0;i < numSuffixes; ++i)
+        if (filename.endsWith(openAssImpFileTypes[i]))
+            return true;
+
+    return false;
 }
 
 bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &materialMap)
@@ -1247,6 +1245,7 @@ bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QStr
     LogInfo("Failed to find material for " + ref.toStdString());
     return false;
 }
+#endif
 
 bool LoadFileToVector(const char *filename, std::vector<u8> &dst)
 {

@@ -134,7 +134,6 @@ AssetLoadState IAsset::LoadFromFileInMemory(const u8 *data, size_t numBytes)
     else
         contentHashChanged = false;
 
-
     return DeserializeFromData(data, numBytes);
 }
 

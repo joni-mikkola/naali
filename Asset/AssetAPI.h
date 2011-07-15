@@ -7,7 +7,6 @@
 #include <vector>
 #include <utility>
 #include <map>
-#include <tr1/unordered_map>
 
 #include "CoreTypes.h"
 #include "AssetFwd.h"
@@ -15,12 +14,13 @@
 
 class QFileSystemWatcher;
 
+#ifdef ASSIMP_ENABLED
+/// Returns true if extension is AssImp supported
 bool IsAssimpSupported(const QString &filename);
 
-bool LoadAssimpMesh(QString &ref, std::vector<u8> &dst);
-
-
+/// Loads material info from textureMap[ref] to dst vector
 bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &textureMap);
+#endif
 
 /// Loads the given local file into the specified vector. Clears all data previously in the vector.
 /// Returns true on success.
@@ -49,8 +49,10 @@ public:
 
 public:
     
+    /// Since map sorts data according to key value, we need vector for holding real material index order
+    std::map<QString, std::vector<QString> > materialIndexMap;
+
     /// Store all material information here
-    std::map<QString, std::vector<QString> > materialOrderMap;
     std::map<QString, QString> materialMap;
 
     /// Registers a type factory for creating assets of the type governed by the factory.

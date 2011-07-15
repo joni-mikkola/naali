@@ -3,6 +3,7 @@
 
 #include <string>
 #include <OgreMesh.h>
+#include <OgreMeshSerializer.h>
 
 #include <assimp/assimp.hpp>
 #include <assimp/aiScene.h>
@@ -10,6 +11,8 @@
 #include <map>
 #include <QString>
 //#include "GOOFSharedFrameworkData.h"
+
+#define NUMELEMS(x) (sizeof(x)/sizeof(x[0]))
 
 //TODO: only need a bool ?
 struct boneNode
@@ -47,6 +50,7 @@ public:
     std::map<QString, QString> matList;
     std::vector<QString> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
+    bool IsSupportedExtension(QString extension);
 
 private:
     QString addr;

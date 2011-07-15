@@ -576,7 +576,24 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
 
 }
 
+bool OpenAssetImport::IsSupportedExtension(QString extension)
+{
+    const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
+        ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
+        ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
+        ".ply", ".cob", ".scn" };
 
+    int numSuffixes = NUMELEMS(openAssImpFileTypes);
+
+    for(int i = 0;i < numSuffixes; ++i)
+        if (extension.contains(openAssImpFileTypes[i]))
+            return true;
+
+    return false;
+
+
+
+}
 
 void OpenAssetImport::markAllChildNodesAsNeeded(const aiNode *pNode)
 {
@@ -852,64 +869,18 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     }
 
     int two_sided;
-    aiGetMaterialInteger(mat, AI_MATKEY_TWOSIDED, &two_sided);
-
-    if (two_sided != 0)
+    if (aiGetMaterialInteger(mat, AI_MATKEY_TWOSIDED, &two_sided))
         ogreMaterial->setCullingMode(Ogre::CULL_NONE);
 
     ogreMaterial->setReceiveShadows(true);
 
     if (mat->GetTexture(type, 0, &path) == AI_SUCCESS)
     {
-        //hack for showing up back and front faces when loading material containing texture
-        //it's working for 3d warehouse models though the problem is probably in the models
+        //hack for showing back and front faces when loading material containing texture
+        //it's working for 3d warehouse models though the problem is probably in the models and how the faces has been set by the modeler
         ogreMaterial->setCullingMode(Ogre::CULL_NONE);
 
-        /*Ogre::LogManager::getSingleton().logMessage("Found texture " + Ogre::String(path.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
-        if(AI_SUCCESS == aiGetMaterialString(mat, AI_MATKEY_TEXTURE_DIFFUSE(0), &szPath))
-        {
-            Ogre::LogManager::getSingleton().logMessage("Using aiGetMaterialString : Found texture " + Ogre::String(szPath.data) + " for channel " + Ogre::StringConverter::toString(uvindex));
-        }
-
-        // attempt to load the image
-        Ogre::Image image;
-
-        // possibly if we fail to actually find it, pop up a box?
-        Ogre::String pathname(mDir + "\\" + path.data);
-
-        std::ifstream imgstream;
-        imgstream.open(path.data, std::ios::binary);
-        if(!imgstream.is_open())
-            imgstream.open(Ogre::String(mDir + Ogre::String("\\") + Ogre::String(path.data)).c_str(), std::ios::binary);
-
-        if (imgstream.is_open())
-        {
-            // Wrap as a stream
-            Ogre::DataStreamPtr strm(OGRE_NEW Ogre::FileStreamDataStream(path.data, &imgstream, false));
-
-            if (!strm->size() || strm->size() == 0xffffffff)
-            {
-                // fall back to our very simple and very hardcoded hot-pink version
-                Ogre::DataStreamPtr altStrm(OGRE_NEW Ogre::MemoryDataStream(s_RGB, sizeof(s_RGB)));
-                image.loadRawData(altStrm, 2, 2, Ogre::PF_B8G8R8);
-                Ogre::LogManager::getSingleton().logMessage("Could not load texture, falling back to hotpink");
-            } else
-            {
-                // extract extension from filename
-                size_t pos = pathname.find_last_of('.');
-                Ogre::String ext = pathname.substr(pos+1);
-                image.load(strm, ext);
-                imgstream.close();
-            }
-        } else {
-            // fall back to our very simple and very hardcoded hot-pink version
-            Ogre::DataStreamPtr altStrm(OGRE_NEW Ogre::MemoryDataStream(s_RGB, sizeof(s_RGB)));
-            image.loadRawData(altStrm, 2, 2, Ogre::PF_R8G8B8);
-            Ogre::LogManager::getSingleton().logMessage("Could not load texture, falling back to hotpink - 2");
-        }
-        //szPath.Set("/home/joni/AssImpTesting/SkeletalAnimation/boy_10.tga");
-        Ogre::TextureManager::getSingleton().loadImage(Ogre::String(szPath.data), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, image);
-        //TODO: save this to materials/textures ?*/
+        //set texture info into the ogreMaterial
         Ogre::TextureUnitState* texUnitState = ogreMaterial->getTechnique(0)->getPass(0)->createTextureUnitState(basename);
 
     }

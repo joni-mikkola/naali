@@ -5,7 +5,6 @@
 #include "OgreConversionUtils.h"
 #include "OgreRenderingModule.h"
 #include "AssetAPI.h"
-#include "OpenAssetImport.h"
 #include "AssetCache.h"
 
 #include <QFile>
