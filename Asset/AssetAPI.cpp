@@ -994,7 +994,8 @@ void AssetAPI::AssetTransferFailed(IAssetTransfer *transfer, QString reason)
     if (!transfer)
         return;
 
-    LogError("Transfer of asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" failed! Reason: \"" + reason + "\"");
+    if (!transfer->source.ref.contains('#'))
+        LogError("Transfer of asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" failed! Reason: \"" + reason + "\"");
 
     ///\todo In this function, there is a danger of reaching an infinite recursion. Remember recursion parents and avoid infinite loops. (A -> B -> C -> A)
 
@@ -1242,7 +1243,7 @@ bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QStr
         return true;
     }
 
-    LogInfo("Failed to find material for " + ref.toStdString());
+    //LogInfo("Failed to find material for " + ref.toStdString());
     return false;
 }
 #endif

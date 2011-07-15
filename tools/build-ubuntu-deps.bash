@@ -64,7 +64,7 @@ function build-regular {
 }
 
 what=Assimp
-if test -f $tags/what-done; then
+if test -f $tags/$what-done; then
 	echo $what is done
 else
 	cd $build

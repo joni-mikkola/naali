@@ -187,9 +187,15 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
                 TundraLogic::SceneImporter sceneimporter(scene);
 
                 Transform worldtransform;
+                LogInfo(filename.toStdString());
+                LogInfo(dirname);
+                QString tmpDir = dirname.c_str();
+                tmpDir.remove(tmpDir.lastIndexOf('/'), tmpDir.length());
+                tmpDir.remove(0, tmpDir.lastIndexOf('/') + 1);
+                std::string fileRef = "file://" + tmpDir.toStdString() + "/models/";
 
                 Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString(), dirname, worldtransform,
-                    std::string(), "local://", AttributeChange::Default, false, "");
+                    std::string(), fileRef.c_str(), AttributeChange::Default, false, "");
                 if (entity)
                     ret.append(entity.get());
 
@@ -198,7 +204,6 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
 #endif
         }
     }
-
     if (!sceneDescs.isEmpty())
     {
         AddContentWindow *addContent = new AddContentWindow(framework_, scene);

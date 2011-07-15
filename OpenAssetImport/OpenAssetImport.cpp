@@ -40,6 +40,7 @@ int OpenAssetImport::msBoneCount = 0;
 
 inline void FixFileReference(QString &matRef, QString addRef)
 {
+    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(0, addRef.lastIndexOf('/')+1);
@@ -73,6 +74,7 @@ inline void FixHttpReference(QString &matRef, QString addRef)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -95,7 +97,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     int removeSortFlags = importer.GetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE);
     this->generateMaterials = generateMaterials;
     removeSortFlags |= aiPrimitiveType_POINT | aiPrimitiveType_LINE;
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
+
 
     importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
     importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
@@ -109,6 +111,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                               | aiProcess_SplitLargeMeshes
                               | aiProcess_FindInvalidData
                               | aiProcess_GenNormals
+                              
                               | aiProcess_Triangulate
                               | aiProcess_FlipUVs
                               | aiProcess_JoinIdenticalVertices
@@ -225,6 +228,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 if (std::find(exportedNames.begin(), exportedNames.end(), matName) == exportedNames.end())
                 {
                     Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
+
                     ms.queueForExport(materialPtr, true);
 
                     QString materialInfo = ms.getQueuedAsString().c_str();
@@ -869,7 +873,9 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     }
 
     int two_sided;
-    if (aiGetMaterialInteger(mat, AI_MATKEY_TWOSIDED, &two_sided))
+    aiGetMaterialInteger(mat, AI_MATKEY_TWOSIDED, &two_sided);
+
+    if (two_sided != 0)
         ogreMaterial->setCullingMode(Ogre::CULL_NONE);
 
     ogreMaterial->setReceiveShadows(true);
