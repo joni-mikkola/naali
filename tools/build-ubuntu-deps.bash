@@ -38,6 +38,13 @@ export CC="ccache gcc"
 export CXX="ccache g++"
 export CCACHE_DIR=$deps/ccache
 
+private_ogre=true
+
+if [ x$private_ogre != xtrue ]; then
+   more="$more libogre-dev"
+fi
+
+
 function build-regular {
     urlbase=$1
     shift
@@ -76,7 +83,7 @@ else
 	make install
 	touch $tags/$what-done
 fi
-	
+
 what=bullet-2.77
 if test -f $tags/$what-done; then
     echo $what is done
@@ -137,6 +144,24 @@ else
     touch $tags/$what-done
 fi
 
+if [ x$private_ogre = xtrue ]; then
+    what=ogre
+    if test -f $tags/$what-done; then
+        echo $what is done
+    else
+        cd $build
+        rm -rf $what
+        hg clone http://bitbucket.org/sinbad/$what/ -u v1-7-3
+        cd $what
+        mkdir -p $what-build
+        cd $what-build
+        cmake .. -DCMAKE_INSTALL_PREFIX=$prefix
+        make -j $nprocs VERBOSE=1
+        make install
+        touch $tags/$what-done
+    fi
+fi
+
 what=Caelum
 if test -f $tags/$what-done; then
     echo $what is done
@@ -157,6 +182,7 @@ else
     cp main/include/* $prefix/include/
     touch $tags/$what-done
 fi
+
 
 cd $build
 what=PythonQt
@@ -224,3 +250,7 @@ EOF
 chmod +x ccache-g++-wrapper
 NAALI_DEP_PATH=$prefix cmake -DCMAKE_CXX_COMPILER="$viewer/ccache-g++-wrapper" .
 make -j $nprocs VERBOSE=1
+
+if [ x$private_ogre = xtrue ]; then
+sed '/PluginFolder/c \PluginFolder=../../naali-deps/install/lib/OGRE' $viewer/bin/plugins-unix.cfg > tmpfile ; mv tmpfile /$viewer/bin/plugins-unix.cfg
+fi

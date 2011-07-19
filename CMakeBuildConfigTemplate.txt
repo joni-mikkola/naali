@@ -199,3 +199,5 @@ endif()
 
 AddEntityComponent(EntityComponents/EC_ChatBubble EC_ChatBubble)   # Declared by RexLogicModule.
 AddEntityComponent(EntityComponents/EC_Billboard EC_Billboard)     # Declared by OgreRenderingModule.
+
+add_subdirectory(G3dwhModule)
