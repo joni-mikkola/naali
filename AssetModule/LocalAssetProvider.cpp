@@ -210,7 +210,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
 
-        if (path.isEmpty() && !ref.contains("#"))
+        if (path.isEmpty() && !IsAssimpTexture(ref))
         {
             QString reason = "Failed to find local asset with filename \"" + ref + "\"!";
 //            AssetModule::LogWarning(reason.toStdString());
@@ -224,7 +224,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         bool success;
 
 
-        if (ref.contains("#")) 
+        if (IsAssimpTexture(ref))
         {
 #ifdef ASSIMP_ENABLED
             success = LoadMaterialInfo(ref, transfer->rawAssetData, framework->Asset()->materialMap);

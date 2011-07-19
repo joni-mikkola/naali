@@ -14,6 +14,9 @@
 
 class QFileSystemWatcher;
 
+/// Returns true if string contains '#'
+bool IsAssimpTexture(const QString &filename);
+
 #ifdef ASSIMP_ENABLED
 /// Returns true if extension is AssImp supported
 bool IsAssimpSupported(const QString &filename);

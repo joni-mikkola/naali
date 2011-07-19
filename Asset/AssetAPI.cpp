@@ -861,7 +861,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
     // We should be tracking this transfer in an internal data structure.
     AssetTransferMap::iterator iter = currentTransfers.find(transfer->source.ref);
 
-    if (iter == currentTransfers.end() && !transfer->source.ref.contains("#"))
+    if (iter == currentTransfers.end() && !IsAssimpTexture(transfer->source.ref))
         LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
 
     // We've finished an asset data download, now create an actual instance of an asset of that type.
@@ -935,7 +935,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
     AssetTransferMap::iterator iter = currentTransfers.find(assetRef);
     if (iter == currentTransfers.end())
     {
-        if (!assetRef.contains("#"))
+        if (!IsAssimpTexture(assetRef))
             LogError("Could not find corresponding asset transfer for completed asset load " + assetRef);
         return;
     }
@@ -951,7 +951,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
     {
         // Add the loaded asset to the internal asset map
         AssetMap::iterator iter2 = assets.find(transfer->source.ref);
-        if (iter2 != assets.end() && !transfer->source.ref.contains("#"))
+        if (iter2 != assets.end() && !IsAssimpTexture(transfer->source.ref))
         {
             AssetPtr existing = iter2->second;
             LogWarning("AssetAPI: Overwriting a previously downloaded asset \"" + existing->Name() + "\", type \"" + existing->Type() + "\" with asset of same name!");
@@ -959,7 +959,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
         assets[transfer->source.ref] = transfer->asset;
 
         // Add file watcher to the disk source
-        if (diskSourceChangeWatcher && !transfer->asset->DiskSource().isEmpty() && !transfer->source.ref.contains("#"))
+        if (diskSourceChangeWatcher && !transfer->asset->DiskSource().isEmpty() && !IsAssimpTexture(transfer->source.ref))
             diskSourceChangeWatcher->addPath(transfer->asset->DiskSource());
 
         // Tell everyone a new asset was loaded
@@ -975,7 +975,7 @@ void AssetAPI::OnTransferAssetLoadCompleted(const QString assetRef, AssetLoadSta
         if (NumPendingDependencies(transfer->asset) == 0)
             AssetDependenciesCompleted(transfer);
     }
-    else if (result == ASSET_LOAD_FAILED && !transfer->source.ref.contains("#"))
+    else if (result == ASSET_LOAD_FAILED && !IsAssimpTexture(transfer->source.ref))
     {
         QString error("AssetAPI: Failed to load " + transfer->assetType + " '" + transfer->source.ref + "' from asset data.");
         transfer->asset->HandleLoadError(error);
@@ -994,7 +994,7 @@ void AssetAPI::AssetTransferFailed(IAssetTransfer *transfer, QString reason)
     if (!transfer)
         return;
 
-    if (!transfer->source.ref.contains('#'))
+    if (!IsAssimpTexture(transfer->source.ref))
         LogError("Transfer of asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" failed! Reason: \"" + reason + "\"");
 
     ///\todo In this function, there is a danger of reaching an infinite recursion. Remember recursion parents and avoid infinite loops. (A -> B -> C -> A)
@@ -1059,7 +1059,7 @@ void AssetAPI::AssetDependenciesCompleted(AssetTransferPtr transfer)
     if (iter != currentTransfers.end())
         currentTransfers.erase(iter);
     else // Even if we didn't know about this transfer, just print a warning and continue execution here nevertheless.
-        if (!transfer->source.ref.contains("#"))
+        if (!IsAssimpTexture(transfer->source.ref))
             LogError("AssetAPI: Asset \"" + transfer->assetType + "\", name \"" + transfer->source.ref + "\" transfer finished, but no corresponding AssetTransferPtr was tracked by AssetAPI!");
 
     if (transfer->rawAssetData.size() == 0)
@@ -1215,6 +1215,14 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
 }
 
 #ifdef ASSIMP_ENABLED
+
+bool IsAssimpTexture(const QString &filename)
+{
+    if (filename.contains('#'))
+        return true;
+    return false;
+}
+
 bool IsAssimpSupported(const QString &filename)
 {
     const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
