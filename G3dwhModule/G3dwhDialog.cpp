@@ -1,5 +1,6 @@
 #include "G3dwhDialog.h"
 #include "ui_G3dwhDialog.h"
+#include "G3dwhModule.h"
 
 #include <QDir>
 #include <QFile>
@@ -15,13 +16,30 @@
 
 #include "LoggingFunctions.h"
 
-G3dwhDialog::G3dwhDialog(QWidget *parent) :
+#include "SceneAPI.h"
+#include "AssetAPI.h"
+#include "IAsset.h"
+
+#include "IAssetTransfer.h"
+#include "SceneManager.h"
+#include "Entity.h"
+#include "InputAPI.h"
+#include "RenderServiceInterface.h"
+#include "../TundraLogicModule/SceneImporter.h"
+#include "UiAPI.h"
+#include "UiGraphicsView.h"
+#include "UiMainWindow.h"
+#include "LoggingFunctions.h"
+#include "Transform.h"
+#include "SceneDesc.h"
+
+G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::G3dwhDialog)
 {
     ui->setupUi(this);
 
-
+    framework_ = framework;
     toolBar = new QToolBar(this);
     toolBar->setObjectName(QString::fromUtf8("toolBar"));
 
@@ -130,7 +148,24 @@ void G3dwhDialog::on_removeButton_Clicked()
 
 void G3dwhDialog::addToScene(QString pathToFile)
 {
-    unpackDownload(pathToFile);
+    QString daeRef;
+    // get dae file reference to daeref
+    unpackDownload(pathToFile, daeRef);
+    daeRef.insert(0, "file://");
+
+    const Scene::ScenePtr &scene = framework_->Scene()->GetDefaultScene();
+    TundraLogic::SceneImporter sceneimporter(scene);
+
+    std::string filename =  "";
+    std::string dirname = "";
+
+    Transform worldtransform;
+    QString tmpDir = dirname.c_str();
+    std::string fileRef = daeRef.toStdString();
+
+    Scene::EntityPtr entity = sceneimporter.ImportMesh(filename, dirname, worldtransform, std::string(), fileRef.c_str(), AttributeChange::Default, false, "");
+    //if (entity)
+    //    ret.append(entity.get());
 }
 
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
@@ -249,14 +284,14 @@ void G3dwhDialog::setScenePath(QString scenePath)
     sceneDir = scenePath;
 }
 
-int G3dwhDialog::unpackDownload(QString file)
+int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
 {
     QFile inFile(file);
     QFile outFile;
 
     QString targetName = file.replace(".zip","/");
 
-    QuaZip zip(&inFile);
+    QuaZip zip(inFile.fileName());
 
     if(!zip.open(QuaZip::mdUnzip)) {
       qWarning("testRead(): zip.open(): %d", zip.getZipError());
@@ -277,6 +312,10 @@ int G3dwhDialog::unpackDownload(QString file)
         qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
         return false;
       }
+
+      if (name.endsWith(".dae"))
+          daeRef = targetName + name;
+
       QString dirn = sceneDir + targetName + name;
 
       if (name.contains('/')) { // subdirectory support

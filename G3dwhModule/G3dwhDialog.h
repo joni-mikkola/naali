@@ -8,6 +8,9 @@
 #include <QListWidgetItem>
 #include <QPushButton>
 
+#include "SceneFwd.h"
+#include "AssetReference.h"
+#include "IModule.h"
 
 namespace Ui {
     class G3dwhDialog;
@@ -16,7 +19,7 @@ namespace Ui {
 class G3dwhDialog : public QDialog {
     Q_OBJECT
 public:
-    G3dwhDialog(QWidget *parent = 0);
+    G3dwhDialog(Foundation::Framework * framework, QWidget *parent = 0);
     ~G3dwhDialog();
 
     void setScenePath(QString scenePath);
@@ -28,6 +31,7 @@ protected:
     void changeEvent(QEvent *e);
 
 private:
+    Foundation::Framework * framework_;
     Ui::G3dwhDialog *ui;
 
     QToolBar *toolBar;
@@ -41,7 +45,7 @@ private:
     bool downloadAborted;
 
     void updateDownloads();
-    int unpackDownload(QString file);
+    int unpackDownload(QString file, QString & daeRef);
     void addToScene(QString pathToFile);
 
 private slots:

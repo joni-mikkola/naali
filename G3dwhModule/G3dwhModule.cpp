@@ -76,7 +76,7 @@ void G3dwhModule::Update(f64 frametime)
 
 void G3dwhModule::ShowG3dwhWindow()
 {
-    warehouse_ = new G3dwhDialog(GetFramework()->Ui()->MainWindow());
+    warehouse_ = new G3dwhDialog(framework_, GetFramework()->Ui()->MainWindow());
     warehouse_->show();
 
     std::vector<AssetStoragePtr> storages = framework_->Asset()->GetAssetStorages();
