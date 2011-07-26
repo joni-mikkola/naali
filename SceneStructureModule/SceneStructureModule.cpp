@@ -42,10 +42,6 @@
 
 DEFINE_POCO_LOGGING_FUNCTIONS("SceneStructure");
 
-#ifdef ASSIMP_ENABLED
-#include <../OpenAssetImport/OpenAssetImport.h>
-#endif
-
 //#include <OgreCamera.h>
 
 #include "MemoryLeakCheck.h"
@@ -178,9 +174,9 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
         {
 #ifdef ASSIMP_ENABLED
             boost::filesystem::path path(filename.toStdString());
-            OpenAssetImport::OpenAssetImport assimporter;
+
             QString extension = QString(path.extension().c_str()).toLower();
-            if (assimporter.IsSupportedExtension(extension))
+            if (IsAssimpSupported(extension))
             {
                 std::string dirname = path.branch_path().string();
                 LogInfo(dirname);
@@ -269,9 +265,9 @@ bool SceneStructureModule::IsSupportedFileType(const QString &fileRef)
     {
 #ifdef ASSIMP_ENABLED
         boost::filesystem::path path(fileRef.toStdString());
-        OpenAssetImport::OpenAssetImport assimporter;
+
         QString extension = QString(path.extension().c_str()).toLower();
-        if (assimporter.IsSupportedExtension(extension))
+        if (IsAssimpSupported(extension))
             return true;
         return false;
 #endif
