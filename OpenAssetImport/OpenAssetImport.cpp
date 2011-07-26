@@ -23,6 +23,7 @@
 #include "OgreAnimationTrack.h"
 #include "OgreKeyFrame.h"
 #include <QString>
+#include <QStringList>
 #include <boost/tuple/tuple.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
@@ -42,9 +43,12 @@ inline void FixFileReference(QString &matRef, QString addRef)
 {
     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
+    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
+    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(0, addRef.lastIndexOf('/')+1);
-    addRef.insert(0, "file://");
+    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
+    addRef.insert(0, "local://");
     addRef.insert(addRef.length(), "/images/");
 
     size_t indx = matRef.indexOf("texture ", 0);
@@ -74,7 +78,7 @@ inline void FixHttpReference(QString &matRef, QString addRef)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -98,8 +102,13 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     this->generateMaterials = generateMaterials;
     removeSortFlags |= aiPrimitiveType_POINT | aiPrimitiveType_LINE;
 
+    /// NOTICE!!!
+    // Some converted mesh might show up pretty messed up, it's happening because some formats might
+    // contain unnecessary vertex information, lines and points. Uncomment the line below for fixing this issue.
 
-    importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
+    //importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
+    /// END OF NOTICE
+
     importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
     importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
     importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
@@ -110,8 +119,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     scene = importer.ReadFile(filename, 0 //aiProcessPreset_TargetRealtime_MaxQuality |  aiProcess_PreTransformVertices);/*
                               | aiProcess_SplitLargeMeshes
                               | aiProcess_FindInvalidData
-                              | aiProcess_GenNormals
-                              
+                              | aiProcess_GenNormals                        
                               | aiProcess_Triangulate
                               | aiProcess_FlipUVs
                               | aiProcess_JoinIdenticalVertices
@@ -189,8 +197,13 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             if (!sm->useSharedVertices)
             {
                 // AutogreMaterialic
+#if OGRE_VERSION_MINOR <= 8 && OGRE_VERSION_MAJOR <= 1
                 Ogre::VertexDeclaration* newDcl =
                         sm->vertexData->vertexDeclaration->getAutoOrganisedDeclaration(mMesh->hasSkeleton(), mMesh->hasVertexAnimation(), false);
+#else
+                Ogre::VertexDeclaration* newDcl =
+                        sm->vertexData->vertexDeclaration->getAutoOrganisedDeclaration(mMesh->hasSkeleton(), mMesh->hasVertexAnimation());
+#endif
                 if (*newDcl != *(sm->vertexData->vertexDeclaration))
                 {
                     // Usages don't matter here since we're only exporting
@@ -241,15 +254,21 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                             FixFileReference(materialInfo, addr);
                     }
 
-                    QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+                   // QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+                    QStringList parsedRef = fileLocation.split("/");
+                    int length=parsedRef.length();
+                    QString output=parsedRef[length-3]+"/"+parsedRef[length-2]+"/"+parsedRef[length-1];
+                    Ogre::LogManager::getSingleton().logMessage(output.toStdString());
+                    //Ogre::LogManager::getSingleton().logMessage(parsedRef.toStdString());
 
                     if (fileLocation.startsWith("http"))
                         matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
                     else
-                        matList[parsedRef + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
+                        matList[output + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
 
                     QString tmp = sm->getMaterialName().c_str();
-                    matNameList.push_back(tmp + ".material");
+                     Ogre::LogManager::getSingleton().logMessage(tmp.toStdString());
+                    matNameList.push_back(output + ".material");
                 }
             }
         }
@@ -884,7 +903,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     {
         //hack for showing back and front faces when loading material containing texture
         //it's working for 3d warehouse models though the problem is probably in the models and how the faces has been set by the modeler
-        ogreMaterial->setCullingMode(Ogre::CULL_NONE);
+        //ogreMaterial->setCullingMode(Ogre::CULL_NONE);
 
         //set texture info into the ogreMaterial
         Ogre::TextureUnitState* texUnitState = ogreMaterial->getTechnique(0)->getPass(0)->createTextureUnitState(basename);
