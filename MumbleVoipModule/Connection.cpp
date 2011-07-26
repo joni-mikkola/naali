@@ -77,6 +77,11 @@ namespace MumbleLib
         connection->MarkUserLeft(user);
     }
 
+    void ErrorCallback(const boost::system::error_code& error, Connection* connection)
+    {
+        connection->HandleError(error);
+    }
+
     Connection::Connection(MumbleVoip::ServerInfo &info, int playback_buffer_length_ms) :
             client_(0),
             authenticated_(false),
@@ -103,22 +108,18 @@ namespace MumbleLib
         QMutexLocker client_locker(&mutex_client_);
         client_ = mumble_lib->NewClient();
 
-        QUrl server_url(QString("mumble://%1").arg(info.server));
-
-        QString port = QString::number(server_url.port(MUMBLE_DEFAULT_PORT_)); // default port name
-        QString server = server_url.host();
-
         // \todo Handle connection error
-	    client_->SetRawUdpTunnelCallback( boost::bind(&RawUdpTunnelCallback, _1, _2, this));
+        client_->SetRawUdpTunnelCallback( boost::bind(&RawUdpTunnelCallback, _1, _2, this));
         client_->SetChannelAddCallback(boost::bind(&ChannelAddCallback, _1, this));
         client_->SetChannelRemoveCallback(boost::bind(&ChannelRemoveCallback, _1, this));
         client_->SetTextMessageCallback(boost::bind(&TextMessageCallback, _1, this));
         client_->SetAuthCallback(boost::bind(&AuthCallback, this));
         client_->SetUserJoinedCallback(boost::bind(&UserJoinedCallback, _1, this));
         client_->SetUserLeftCallback(boost::bind(&UserLeftCallback, _1, this));
+        client_->SetErrorCallback(boost::bind(&ErrorCallback, _1, this));
         try
         {
-            client_->Connect(MumbleClient::Settings(server.toStdString(), port.toStdString(), info.user_name.toStdString(), info.password.toStdString()));
+            client_->Connect(MumbleClient::Settings(info.server.toStdString(), info.port.toStdString(), info.user_name.toStdString(), info.password.toStdString()));
         }
         catch(std::exception &e)
         {
@@ -130,6 +131,7 @@ namespace MumbleLib
         }
         user_name_ = info.user_name;
         user_comment_ = info.avatar_id;
+        current_server_ = info.server;
 
         lock_state_.lockForWrite();
         state_ = STATE_AUTHENTICATING;
@@ -179,6 +181,18 @@ namespace MumbleLib
         lock_state_.unlock();
     }
 
+    void Connection::HandleError(const boost::system::error_code &error)
+    {
+        if(state_ == STATE_CLOSED)
+            return;
+
+        MumbleVoip::MumbleVoipModule::LogError("Relayed from mumbleclient (" + ToString(error.category().name()) + "\\" + ToString(error.message()) + ")");
+        lock_state_.lockForWrite();
+        state_ = STATE_ERROR;
+        lock_state_.unlock();
+        emit StateChanged(state_);
+    }
+
     Connection::State Connection::GetState() const
     {
         //lock_state_.lockForRead(); // cannot be call because const 
@@ -194,7 +208,10 @@ namespace MumbleLib
 
     void Connection::Close()
     {
-        if (state_ == STATE_CONNECTING)
+        if(state_ == STATE_CLOSED)
+            return;
+
+        if (state_ == STATE_CONNECTING || state_ == STATE_AUTHENTICATING)
         {
             lock_state_.lockForWrite();
             state_ = STATE_CLOSED;
@@ -202,37 +219,33 @@ namespace MumbleLib
             emit StateChanged(state_);
             return;
         }
-
-        if (state_ == STATE_AUTHENTICATING)
+        else
         {
             lock_state_.lockForWrite();
             state_ = STATE_CLOSED;
             lock_state_.unlock();
             emit StateChanged(state_);
-            return;
         }
 
         user_update_timer_.stop();
         QMutexLocker raw_udp_tunnel_locker(&mutex_raw_udp_tunnel_);
-        lock_state_.lockForWrite();
         QMutexLocker client_locker(&mutex_client_);
-        if (state_ != STATE_CLOSED && state_ != STATE_ERROR)
+
+        try
         {
-            try
-            {
-                client_->Disconnect();
-            }
-            catch(std::exception &e)
-            {
-                state_ = STATE_ERROR;
-                reason_ = QString(e.what());
-            }
-            state_ = STATE_CLOSED;
-            lock_state_.unlock();
-            emit StateChanged(state_);
+            client_->Disconnect();
         }
-        else
+        catch(std::exception &e)
+        {
+            lock_state_.lockForWrite();
+            state_ = STATE_ERROR;
             lock_state_.unlock();
+            reason_ = QString(e.what());
+        }
+        lock_state_.lockForWrite();
+        state_ = STATE_CLOSED;
+        lock_state_.unlock();
+        emit StateChanged(state_);
     }
 
     void Connection::InitializeCELT()
@@ -322,17 +335,20 @@ namespace MumbleLib
         QMutexLocker locker1(&mutex_authentication_);
         QMutexLocker locker2(&mutex_channels_);
 
+        QString sub_channel = channel_name.split("\\", QString::SkipEmptyParts, Qt::CaseInsensitive).last();
+
         if (!authenticated_)
         {
-            join_request_ = channel_name;
+            join_request_ = sub_channel;
             return; 
         }
 
         foreach(Channel* channel, channels_)
         {
-            if (channel->FullName() == channel_name)
+            if (channel->FullName() == sub_channel)
             {
                 Join(channel);
+                break;
             }
         }
     }

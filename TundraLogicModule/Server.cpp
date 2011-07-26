@@ -74,6 +74,7 @@ Server::Server(TundraLogicModule* owner) :
 
 Server::~Server()
 {
+    Stop();
 }
 
 void Server::Update(f64 frametime)
@@ -97,9 +98,9 @@ bool Server::Start(unsigned short port)
 
         // Create the default server scene
         /// \todo Should be not hard coded like this. Give some unique id (uuid perhaps) that could be returned to the client to make the corresponding named scene in client?
-        Scene::ScenePtr scene = framework_->Scene()->CreateScene("TundraServer", true);
+        // SyncManager is registered to scene after scene creation via signaling.
+        Scene::ScenePtr scene = framework_->Scene()->CreateScene("TundraServer_0", true);
         framework_->Scene()->SetDefaultScene(scene);
-        owner_->GetSyncManager()->RegisterToScene(scene);
         
         // Create an authoritative physics world
         Physics::PhysicsModule *physics = framework_->GetModule<Physics::PhysicsModule>();
@@ -109,6 +110,8 @@ bool Server::Start(unsigned short port)
         Events::TundraConnectedEventData event_data;
         event_data.user_id_ = 0;
         framework_->GetEventManager()->SendEvent(tundraEventCategory_, Events::EVENT_TUNDRA_CONNECTED, &event_data);
+
+        connect(this, SIGNAL(UserConnected(int,UserConnection*)), owner_->GetSyncManager(), SLOT(ProcessNewUserConnection(int,UserConnection*)));
         
         emit ServerStarted();
     }
@@ -118,10 +121,10 @@ bool Server::Start(unsigned short port)
 
 void Server::Stop()
 {
-    if (!owner_->IsServer())
+    if (owner_->IsServer())
     {
         owner_->GetKristalliModule()->StopServer();
-        framework_->Scene()->RemoveScene("TundraServer");
+        framework_->Scene()->RemoveScene("TundraServer_0");
         
         emit ServerStopped();
     }
@@ -318,9 +321,6 @@ void Server::HandleLogin(kNet::MessageConnection* source, const MsgLogin& msg)
             user->connection->Send(joined);
         }
     }
-    
-    // Tell syncmanager of the new user
-    owner_->GetSyncManager()->NewUserConnected(user);
     
     emit UserConnected(user->userID, user);
 }

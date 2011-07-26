@@ -45,7 +45,7 @@ class SyncManager : public QObject
     
 public:
     //! Constructor
-    explicit SyncManager(TundraLogicModule* owner);
+    explicit SyncManager(TundraLogicModule* owner, const unsigned short attachedConnection);
     
     //! Destructor
     ~SyncManager();
@@ -68,6 +68,9 @@ public slots:
     
     //! Get update period
     float GetUpdatePeriod() { return update_period_; }
+
+    // Connected to server signal newUserConnected.
+    void ProcessNewUserConnection(int, UserConnection*);
     
 private slots:
     //! Trigger EC sync because of component attributes changing
@@ -166,6 +169,11 @@ private:
     
     //! Server sync state (client operation only)
     SceneSyncState server_syncstate_;
+
+    // This variable is initialized in constructor. This tells what messageConnection this particular syncManager is attached to
+    // so it can get right connection through client->GetConnection(unsigned short)
+    const unsigned short attachedConnection;
+
 };
 
 }

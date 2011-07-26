@@ -54,6 +54,12 @@ EC_Terrain::EC_Terrain(IModule* module) :
     patchHeight(1),
     rootNode(0)
 {
+    // Saves Ogre scenemanager name which was active when this constructor was called.
+    // When in need of scenemanager this component calls it renderer->GetSceneManager(scenemanagername)
+    boost::shared_ptr<OgreRenderer::Renderer> renderer = GetFramework()->GetServiceManager()->GetService<OgreRenderer::Renderer>().lock();
+    scenemanagername = QString::fromStdString(renderer->GetSceneManager()->getName());
+
+
     QObject::connect(this, SIGNAL(ParentEntitySet()), this, SLOT(UpdateSignals()));
 
     static AttributeMetadata heightRefMetadata;
@@ -355,6 +361,7 @@ void EC_Terrain::TerrainAssetLoaded(AssetPtr asset_)
         return;
 
     LoadFromDataInMemory((const char*)&assetData->data[0], assetData->data.size());
+    disconnect(this, SLOT(TerrainAssetLoaded(AssetPtr)));
 }
 
 /// Releases all GPU resources used for the given patch.
@@ -371,7 +378,7 @@ void EC_Terrain::DestroyPatch(int x, int y)
     if (!renderer) // Oops! Inconvenient dtor order - can't delete our own stuff since we can't get an instance to the owner.
         return;
 
-    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager();
+    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager(scenemanagername);
     if (!sceneMgr) // Oops! Same as above.
         return;
 
@@ -415,7 +422,7 @@ void EC_Terrain::Destroy()
     if (!renderer) // Oops! Inconvenient dtor order - can't delete our own stuff since we can't get an instance to the owner.
         return;
 
-    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager();
+    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager(scenemanagername);
     if (!sceneMgr) // Oops! Same as above.
         return;
 
@@ -1325,7 +1332,7 @@ void EC_Terrain::AttachTerrainRootNode()
     if (!renderer)
         return;
 
-    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager();
+    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager(scenemanagername);
     if (!sceneMgr)
         return;
 
@@ -1376,7 +1383,7 @@ void EC_Terrain::GenerateTerrainGeometryForOnePatch(int patchX, int patchY)
     if (!terrainMaterial.get()) // If we could not find the material we were supposed to use, just use the default system terrain material.
         terrainMaterial = OgreRenderer::GetOrCreateLitTexturedMaterial("Rex/TerrainPCF");
 
-    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager();
+    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager(scenemanagername);
     Ogre::ManualObject *manual = sceneMgr->createManualObject(renderer->GetUniqueObjectName("EC_Terrain_manual"));
     manual->setCastShadows(false);
 
@@ -1524,7 +1531,7 @@ void EC_Terrain::CreateRootNode()
     if (!renderer)
         return;
 
-    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager();
+    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager(scenemanagername);
     if (!sceneMgr)
         return;
 
@@ -1542,7 +1549,7 @@ void EC_Terrain::CreateOgreTerrainPatchNode(Ogre::SceneNode *&node, int patchX, 
     if (!renderer)
         return;
 
-    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager();
+    Ogre::SceneManager *sceneMgr = renderer->GetSceneManager(scenemanagername);
     if (!sceneMgr || !sceneMgr->getRootSceneNode())
         return;
 

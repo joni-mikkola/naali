@@ -385,6 +385,92 @@ namespace OgreRenderer
         c_handler_->Initialize(framework_ ,viewport_);
     }
 
+    void Renderer::CreateSceneManager(const QString &sceneName)
+    {
+        Ogre::String name= Ogre::String(sceneName.toStdString());
+        Ogre::SceneManager *scenemanagerTmp;
+
+        try
+        {
+            scenemanagerTmp = root_->createSceneManager(Ogre::ST_GENERIC, name);
+        }
+        catch (Ogre::ItemIdentityException &e)
+        {
+            OgreRenderingModule::LogInfo("SceneManager already exists.");
+            return;
+        }
+        if (framework_->IsHeadless())
+            return;
+
+        //sceneManagerMap[sceneName]=scenemanagerTmp;
+        default_camera_ = scenemanagerTmp->createCamera("DefaultCamera");
+
+        default_camera_->setNearClipDistance(0.1f);
+        default_camera_->setFarClipDistance(2000.f);
+        default_camera_->setFixedYawAxis(true, Ogre::Vector3::UNIT_Z);
+        default_camera_->roll(Ogre::Radian(Ogre::Math::HALF_PI));
+        default_camera_->setAspectRatio(Ogre::Real(viewport_->getActualWidth()) / Ogre::Real(viewport_->getActualHeight()));
+        default_camera_->setAutoAspectRatio(true);
+
+    }
+
+    // Sets viewport again when scenemanager_ pointer is changed
+    void Renderer::SetupViewPort()
+    {
+        Ogre::Camera* camera=scenemanager_->getCamera("DefaultCamera");
+        viewport_->setCamera(camera);
+        camera_=camera;
+    }
+
+    // Changes scenemanager_ pointer to different scene.
+    // Destroys rayqueries from previous scene and initializes them to new scene
+    void Renderer::SetSceneManager(const QString &sceneName)
+    {
+        if (framework_->IsHeadless())
+            return;
+
+        Ogre::String name= Ogre::String(sceneName.toStdString());
+
+        // Remove ray queries from present sceneManager
+        if (scenemanager_)
+            scenemanager_->destroyQuery(ray_query_);
+        // Get new scenemanager from root_
+        scenemanager_ = root_->getSceneManager(name);
+        // Set rayqueries
+        ray_query_ = scenemanager_->createRayQuery(Ogre::Ray());
+        ray_query_->setSortByDistance(true);
+        // Set shadows
+        InitShadows();
+        // Setup viewport for new sceneManager
+        SetupViewPort();
+    }
+
+    // Overloads GetSceneManager-method to return scenemanager_ pointer with name-parameter.
+    Ogre::SceneManager* Renderer::GetSceneManager(const QString &sceneName)
+    {
+        Ogre::String name= Ogre::String(sceneName.toStdString());
+
+        try
+        {
+            return root_->getSceneManager(name);
+        }
+        catch (Ogre::ItemIdentityException &e)
+        {
+            OgreRenderingModule::LogInfo("No such sceneManager called: " + name);
+            return scenemanager_;
+        }
+
+    }
+
+    // Removes Ogre scenemanager from root.
+    void Renderer::RemoveSceneManager(const QString &name)
+    {
+        Ogre::String managerName = Ogre::String(name.toStdString());
+        Ogre::SceneManager* sm = root_->getSceneManager(managerName);
+        root_->destroySceneManager(sm);
+    }
+
+
     bool Renderer::IsFullScreen() const
     {
         if (!framework_->IsHeadless())
@@ -457,7 +543,17 @@ namespace OgreRenderer
     void Renderer::SetCurrentCamera(Ogre::Camera* camera)
     {
         if (!camera)
-            camera = default_camera_;
+        {
+            // Had to make this try catch because multiconnection disconnects might cause default_camera to be something remarkable (read: trash)
+            // and it would crash viewer on multiple scene disconnect situations.
+            try
+            {
+                camera=GetSceneManager()->getCamera("DefaultCamera");
+            }
+            catch (Ogre::ItemIdentityException &e) {
+                camera = NULL;
+            }
+        }
 
         if (viewport_)
         {

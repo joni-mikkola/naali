@@ -11,6 +11,10 @@
 
 #include "kNet.h"
 
+#include <QList>
+#include <QMap>
+#include <QMutableMapIterator>
+
 namespace KristalliProtocol
 {
     //  warning C4275: non dll-interface class 'IMessageHandler' used as base for dll-interface class 'KristalliProtocolModule'
@@ -40,6 +44,10 @@ namespace KristalliProtocol
 
         void Disconnect();
 
+        // Multiconnection disconnect. Takes bool and connection number as a parameter. If bool is false user
+        // disconnected at will and connection properties should be removed immediately.
+        void Disconnect(bool fail, unsigned short con);
+
         /// Starts a Kristalli server at the given port/transport.
         /// \return true if successful
         bool StartServer(unsigned short port, kNet::SocketTransportLayer transport);
@@ -68,8 +76,11 @@ namespace KristalliProtocol
         void SubscribeToNetworkEvents();
 
         /// Return message connection, for use by other modules (null if no connection made)
-        kNet::MessageConnection *GetMessageConnection() { return serverConnection.ptr(); }
-        
+        kNet::MessageConnection *GetMessageConnection(const unsigned short connection) { return serverConnection_map_[connection].ptr(); }
+
+        // Returns iterator to serverConnection_map_
+        QMapIterator<unsigned short, Ptr(kNet::MessageConnection)> GetConnectionArray() { return QMapIterator<unsigned short, Ptr(kNet::MessageConnection)> (serverConnection_map_); }
+
         /// Return server, for use by other modules (null if not running)
         kNet::NetworkServer* GetServer() const { return server; }
         
@@ -88,31 +99,36 @@ namespace KristalliProtocol
         kNet::SocketTransportLayer defaultTransport;
         
     private:
-        /// This timer tracks when we perform the next reconnection attempt when the connection is lost.
-        kNet::PolledTimer reconnectTimer;
+        /// This variable stores the server ip address we are desiring to connect to.
+        /// This is used to remember where we need to reconnect in case the connection goes down.
+        std::string serverIp;
+
+        /// Store the port number we are desiring to connect to. Used for reconnecting
+        unsigned short serverPort;
+
+        /// Store the transport type. Used for reconnecting
+        kNet::SocketTransportLayer serverTransport;
 
         /// Amount of retries remaining for reconnection. Is low for the initial connection, higher for reconnection
         int reconnectAttempts;
+
+        /// This timer tracks when we perform the next reconnection attempt when the connection is lost.
+        kNet::PolledTimer reconnectTimer;
+
+        /// Messageconnection to server
+        Ptr(kNet::MessageConnection) serverConnection;
+
+        /// If true, the connection attempt we've started has not yet been established, but is waiting
+        /// for a transition to OK state. When this happens, the MsgLogin message is sent.
+        bool connectionPending;
 
         void PerformConnection();
 
         /// Allocate a  connection ID for new connection
         u8 AllocateNewConnectionID() const;
         
-        /// If true, the connection attempt we've started has not yet been established, but is waiting
-        /// for a transition to OK state. When this happens, the MsgLogin message is sent.
-        bool connectionPending;
-        
-        /// This variable stores the server ip address we are desiring to connect to.
-        /// This is used to remember where we need to reconnect in case the connection goes down.
-        std::string serverIp;
-        /// Store the port number we are desiring to connect to. Used for reconnecting
-        unsigned short serverPort;
-        /// Store the transport type. Used for reconnecting
-        kNet::SocketTransportLayer serverTransport;
-        
         kNet::Network network;
-        Ptr(kNet::MessageConnection) serverConnection;
+
         kNet::NetworkServer *server;
         
         /// Users that are connected to server
@@ -131,6 +147,41 @@ namespace KristalliProtocol
         
         /// Id for "Framework" event category.
         event_category_id_t frameworkEventCategory_;
+
+        /// Messageconnection properties array: IP
+        QMap<unsigned short, std::string> serverIp_list_;
+
+        /// Messageconnection properties array: Port
+        QMap<unsigned short, unsigned short> serverPort_list_;
+
+        /// Messageconnection properties array: serverTransport
+        QMap<unsigned short, kNet::SocketTransportLayer> serverTransport_list_;
+
+        /// Messageconnections properties array: reconnectAttempts
+        QMap<unsigned short, int> reconnectAttempts_list_;
+
+        /// Messageconnections properties array: Timers
+        QMap<unsigned short, kNet::PolledTimer> reconnectTimer_list_;
+
+        /// Messageconnections properties array: Messageconnections
+        QMap< unsigned short, Ptr(kNet::MessageConnection) > serverConnection_map_;
+
+        // Flag for connection cleanup. True when last item from connection array is being updated.
+        bool cleanup;
+
+        // List for connections to be cleaned up.
+        QList<unsigned short> cleanupList;
+
+        // update function for array of connections
+        void connectionArrayUpdate();
+
+        // This iterates through connection properties and removes items marked for deletion in cleanupList
+        void removeConnectionProperties();
+
+        // This method is pretty much like original PerformConnection-method but it uses iterator
+        // to access current processed connection. Higher powers decide if this is wise.
+        void PerformReconnection(QMutableMapIterator<unsigned short, Ptr(kNet::MessageConnection)> &, unsigned short);
+
     };
 }
 

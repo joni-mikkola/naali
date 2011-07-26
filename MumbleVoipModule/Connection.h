@@ -13,6 +13,7 @@
 #include "Core.h"
 #include "MumbleDefines.h"
 #include "StatisticsHandler.h"
+#include <boost/asio/error.hpp>
 
 class QNetworkReply;
 class QNetworkAccessManager;
@@ -47,8 +48,8 @@ namespace MumbleLib
     //! to use this class.
     //!
     //! This is basically a wrapper over Client class of mumbleclient library.
-    //  Mumbleclient library has a main loop whitch calls callback functions in this class
-    //! so thread safaty have to be dealed within this class.
+    //! Mumbleclient library has a main loop which calls callback functions in this class
+    //! so thread safety have to be dealed within this class.
     //! 
     //! Connections has Channel and User objects.
     class Connection : public QObject
@@ -73,8 +74,8 @@ namespace MumbleLib
         virtual void Close();
 
         //! Joins to given channel if channels exist
-        //! If authtorization is not completed yet the join request is queuesd
-        //! and executed again after successfullu authorization
+        //! If authorization is not completed yet the join request is queued
+        //! and executed again after successfull authorization
         //! @todo HANDLE REJOIN
         virtual void Join(QString channel);
 
@@ -162,13 +163,17 @@ namespace MumbleLib
         //! Remove user from user list if it exist
         void MarkUserLeft(const MumbleClient::User& user);
 
-
         int GetPlaybackBufferMaxLengthMs() { return encoding_quality_; }
         
         //! Set the playback buffer max length for all user object.
         void SetPlaybackBufferMaxLengthMs(int length); // {playback_buffer_length_ms_ = length; }
+
+        //! Handle errors
+        void HandleError(const boost::system::error_code& error);
         
         double GetEncodingQuality() {return encoding_quality_;}
+
+        QString GetCurrentServer() { return current_server_; }
 
         virtual int GetAverageBandwithIn() const;
         virtual int GetAverageBandwithOut() const;
@@ -203,6 +208,7 @@ namespace MumbleLib
         QList<MumbleVoip::PCMAudioFrame*> encode_queue_;
         QList<Channel*> channels_; // @todo Use shared ptr
         QMap<int, User*> users_; // maps: session id <-> User object
+        QString current_server_;
 
         CELTMode* celt_mode_;
         CELTEncoder* celt_encoder_;

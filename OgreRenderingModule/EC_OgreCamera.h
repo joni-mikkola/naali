@@ -140,6 +140,7 @@ private:
     
     //! Ogre camera
     Ogre::Camera* camera_;
+
 };
 
 #endif

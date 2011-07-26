@@ -10,6 +10,7 @@
 #include <kNet.h>
 
 #include <QObject>
+#include <QMap>
 
 struct MsgLogin;
 struct MsgLoginReply;
@@ -64,7 +65,7 @@ public:
 
     /// Returns the underlying kNet MessageConnection object that represents this connection.
     /// This function may return null in the case the connection is not active.
-    kNet::MessageConnection* GetConnection();
+    kNet::MessageConnection* GetConnection(unsigned short);
 
     /// Handles Kristalli event
     void HandleKristalliEvent(event_id_t event_id, IEventData* data);
@@ -79,10 +80,23 @@ signals:
     void AboutToConnect();
 
     /// This signal is emitted immediately after this client has successfully connected to a server.
-    void Connected();
+    void Connected(unsigned short);
 
     /// This signal is emitted when the client has disconnected from the server.
-    void Disconnected();
+    void Disconnected(unsigned short);
+
+    /// This signal is emitted when connection to the server is lost and couldn't accomplish reconnection.
+    void FallbackConnection();
+
+    //Signal for tundralogicmodule.cpp when we are about to disconnect a scene
+    void aboutToDisconnect(const QString&);
+
+    // Signals for javascript.
+    void createOgre(const QString&);
+    void deleteOgre(const QString&);
+    void setOgre(const QString&);
+    void changeScene(const QString&);
+    void changeTab(const unsigned short);
 
 public slots:
     /// Connects and logs in. The QUrl's query parameters will be evaluated for the login data.
@@ -103,7 +117,7 @@ public slots:
 
     /// Disconnects the client from the current server, and also deletes all contents from the client scene.
     /// \param fail Pass in true if the logout was due to connection/login failure. False, if the connection was aborted deliberately by the client.
-    void Logout(bool fail = false);
+    void Logout(bool fail = false, unsigned short removedConnection_ = 0);
 
     /// Get client connection ID (from loginreply message). Is zero if not connected
     int GetConnectionID() const { return client_id_; }
@@ -131,7 +145,29 @@ public slots:
     /// Deletes all set login properties.
     void ClearLoginProperties() { properties.clear(); }
 
+    // Bridge slots from TundraLogicModule.cpp to emit Client signals for creating/deleting OgreScenes in javascript.
+    void emitCreateOgreSignal(const QString&);
+    void emitDeleteOgreSignal(const QString&);
+    void emitSetOgreSignal(const QString&);
+    void emitChangeSceneSignal(const QString&);
+    unsigned short getActiveConnection() const;
+    bool hasConnections();
+
+private slots:
+    void setActiveConnection(const QString&, unsigned short);
+
 private:
+    // check if connected to same IP:port and port
+    bool checkIfConnected(QString, QString, QString);
+
+    // creates unique scenename TundraClientX | X = 0, 1, 2, ..., n; n € Z+
+    // If TundraClient2 is deleted from middle of the list, next scene created will be TundraClient2
+    // bool value false only returns QString without saving new item to scenenames_
+    QString getUniqueSceneName(bool save = false);
+
+    // Saves connection properties to Containers
+    void saveProperties(const QString&);
+
     /// Handles a Kristalli protocol message
     void HandleKristalliMessage(kNet::MessageConnection* source, kNet::message_id_t id, const char* data, size_t numBytes);
 
@@ -156,6 +192,17 @@ private:
     /// User ID, once known
     u8 client_id_;
 
+    // Container for all the connections loginstates
+    QMap<QString,ClientLoginState> loginstate_list_;
+    // Container for all the connections properties
+    QMap< QString, std::map<QString, QString> > properties_list_;
+    // Container for all the connections reconnect bool value
+    QMap<QString, bool> reconnect_list_;
+    // Container for all the connections clientID values
+    QMap<QString, u8> client_id_list_;
+    // Container for all the connections scenenames
+    QMap<int, QString> scenenames_;
+
     /// Kristalli event category
     event_category_id_t kristalliEventCategory_;
     /// Tundra event category
@@ -165,6 +212,13 @@ private:
     TundraLogicModule* owner_;
     /// Framework pointer
     Foundation::Framework* framework_;
+
+    // This variable saves current active connection number
+    unsigned short activeConnection;
+
+    // Flag if any connections available
+    bool connectionsAvailable;
+
 };
 
 }

@@ -44,16 +44,22 @@ kNet::MessageConnection* currentSender = 0;
 namespace TundraLogic
 {
 
-SyncManager::SyncManager(TundraLogicModule* owner) :
+SyncManager::SyncManager(TundraLogicModule* owner, unsigned short con) :
     owner_(owner),
     framework_(owner->GetFramework()),
     update_period_(1.0f / 30.0f),
-    update_acc_(0.0)
+    update_acc_(0.0),
+    attachedConnection(con)
 {
 }
 
 SyncManager::~SyncManager()
 {
+}
+
+void SyncManager::ProcessNewUserConnection(int ID, UserConnection* newuser)
+{
+    NewUserConnected(newuser);
 }
 
 void SyncManager::SetUpdatePeriod(float period)
@@ -108,7 +114,16 @@ void SyncManager::HandleKristalliEvent(event_id_t event_id, IEventData* data)
     if (event_id == KristalliProtocol::Events::NETMESSAGE_IN)
     {
         KristalliProtocol::Events::KristalliNetMessageIn* eventData = checked_static_cast<KristalliProtocol::Events::KristalliNetMessageIn*>(data);
-        HandleKristalliMessage(eventData->source, eventData->id, eventData->data, eventData->numBytes);
+        // Check if client's syncmanager gets messages from different sources than it's own. If so then discard it.
+        if (!owner_->IsServer())
+        {
+            if (!(eventData->source == owner_->GetKristalliModule()->GetMessageConnection(attachedConnection)))
+                return;
+            else
+                HandleKristalliMessage(eventData->source, eventData->id, eventData->data, eventData->numBytes);
+        }
+        else
+            HandleKristalliMessage(eventData->source, eventData->id, eventData->data, eventData->numBytes);
     }
 }
 
@@ -158,7 +173,7 @@ void SyncManager::HandleKristalliMessage(kNet::MessageConnection* source, kNet::
             HandleEntityAction(source, msg);
         }
     }
-    
+
     currentSender = 0;
 }
 
@@ -372,12 +387,12 @@ void SyncManager::OnActionTriggered(Scene::Entity *entity, const QString &action
         msg.parameters.push_back(p);
     }
 
-    if (!isServer && ((type & EntityAction::Server) != 0 || (type & EntityAction::Peers) != 0) && owner_->GetClient()->GetConnection())
+    if (!isServer && ((type & EntityAction::Server) != 0 || (type & EntityAction::Peers) != 0) && owner_->GetClient()->GetConnection(attachedConnection))
     {
         // send without Local flag
         //TundraLogicModule::LogInfo("Tundra client sending EntityAction " + action.toStdString() + " type " + ToString(type));
         msg.executionType = (u8)(type & ~EntityAction::Local);
-        owner_->GetClient()->GetConnection()->Send(msg);
+        owner_->GetClient()->GetConnection(attachedConnection)->Send(msg);
     }
 
     if (isServer && (type & EntityAction::Peers) != 0)
@@ -446,7 +461,7 @@ void SyncManager::Update(f64 frametime)
     else
     {
         // If we are client, process just the server sync state
-        kNet::MessageConnection* connection = owner_->GetKristalliModule()->GetMessageConnection();
+        kNet::MessageConnection* connection = owner_->GetKristalliModule()->GetMessageConnection(attachedConnection);
         if (connection)
             ProcessSyncState(connection, &server_syncstate_);
     }

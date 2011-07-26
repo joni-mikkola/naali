@@ -9,6 +9,8 @@
 
 #include "AssetFwd.h"
 
+#include <QMap>
+
 namespace kNet
 {
 class MessageConnection;
@@ -92,28 +94,48 @@ public:
     /// Return pointer to KristalliProtocolModule for convenience
     const boost::shared_ptr<KristalliProtocol::KristalliProtocolModule>& GetKristalliModule() const { return kristalliModule_; }
     
-    /// Return syncmanager
-    const boost::shared_ptr<SyncManager>& GetSyncManager() const { return syncManager_; }
-    
     /// Return client
     const boost::shared_ptr<Client>& GetClient() const { return client_; }
     
     /// Return server
     const boost::shared_ptr<Server>& GetServer() const { return server_; }
+
+public slots:
+    //Returns syncManager. Used only for server.
+    SyncManager* GetSyncManager();
+    // changeScene
+    void changeScene(const QString&);
+
+    // Grep number out of connection name
+    unsigned short Grep(const QString);
     
 private slots:
     void StartupSceneLoaded(AssetPtr asset);
     void StartupSceneTransferFailed(IAssetTransfer *transfer, QString reason);
 
+    // Connects new syncManager object to newly created scene
+    void AttachSyncManagerToScene(const QString&);
+    // Removes syncManager object from QMap when scene removed.
+    void RemoveSyncManagerFromScene(const QString&);
+
+signals:
+    // Signals which activate clients slots which again emit signals. This is because we want to catch these signals in javascript.
+    void createOgre(const QString&);
+    void deleteOgre(const QString&);
+    void setOgre(const QString&);
+    void setClientActiveConnection(const QString&, unsigned short);
+
 private:
+
     /// Handle a Kristalli protocol message
     void HandleKristalliMessage(kNet::MessageConnection* source, kNet::message_id_t id, const char* data, size_t numBytes);
     
     /// Load the startup scene
     void LoadStartupScene();
     
-    /// Sync manager
-    boost::shared_ptr<SyncManager> syncManager_;
+    // Syncmanager array
+    QMap<QString, SyncManager*> syncManagers_;
+
     /// Client
     boost::shared_ptr<Client> client_;
     /// Server
@@ -136,6 +158,10 @@ private:
     bool autostartserver_;
     //! Autostart server port
     short autostartserver_port_;
+
+    // Active syncManager
+    QString activeSyncManager;
+
 };
 
 }

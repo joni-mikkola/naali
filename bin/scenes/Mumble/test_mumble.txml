@@ -7,29 +7,12 @@
    <attribute value="local://MumbleApplication.js" name="Script ref"/>
   </component>
   <component type="EC_Name" sync="1">
-   <attribute value="AudioCommScript" name="name"/>
+   <attribute value="MumbleApplication" name="name"/>
    <attribute value="" name="description"/>
    <attribute value="false" name="user-defined"/>
   </component>
  </entity>
  <entity id="2">
-  <component type="EC_VoiceChannel" sync="1">
-   <attribute value="mumble" name="protocol"/>
-   <attribute value="1.2.2" name="version"/>
-   <attribute value="localhost" name="serveraddress"/>
-   <attribute value="" name="serverpassword"/>
-   <attribute value="test" name="username"/>
-   <attribute value="Public" name="channelname"/>
-   <attribute value="Root" name="channelid"/>
-   <attribute value="true" name="enabled"/>
-  </component>
-  <component type="EC_Name" sync="1">
-   <attribute value="VoiceChannel" name="name"/>
-   <attribute value="" name="description"/>
-   <attribute value="false" name="user-defined"/>
-  </component>
- </entity>
- <entity id="3">
   <component type="EC_Name" sync="1">
    <attribute value="Instructions" name="name"/>
    <attribute value="" name="description"/>
