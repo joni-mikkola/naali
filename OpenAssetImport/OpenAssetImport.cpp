@@ -23,7 +23,6 @@
 #include "OgreAnimationTrack.h"
 #include "OgreKeyFrame.h"
 #include <QString>
-#include <QStringList>
 #include <boost/tuple/tuple.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
@@ -43,12 +42,9 @@ inline void FixFileReference(QString &matRef, QString addRef)
 {
     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(0, addRef.lastIndexOf('/')+1);
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
-    addRef.insert(0, "local://");
+    addRef.insert(0, "file://");
     addRef.insert(addRef.length(), "/images/");
 
     size_t indx = matRef.indexOf("texture ", 0);
@@ -78,7 +74,7 @@ inline void FixHttpReference(QString &matRef, QString addRef)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -197,7 +193,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             if (!sm->useSharedVertices)
             {
                 // AutogreMaterialic
-#if OGRE_VERSION_MINOR <= 8 && OGRE_VERSION_MAJOR <= 1
+#if OGRE_VERSION_MINOR >= 8 && OGRE_VERSION_MAJOR >= 1
                 Ogre::VertexDeclaration* newDcl =
                         sm->vertexData->vertexDeclaration->getAutoOrganisedDeclaration(mMesh->hasSkeleton(), mMesh->hasVertexAnimation(), false);
 #else
@@ -254,21 +250,15 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                             FixFileReference(materialInfo, addr);
                     }
 
-                   // QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
-                    QStringList parsedRef = fileLocation.split("/");
-                    int length=parsedRef.length();
-                    QString output=parsedRef[length-3]+"/"+parsedRef[length-2]+"/"+parsedRef[length-1];
-                    Ogre::LogManager::getSingleton().logMessage(output.toStdString());
-                    //Ogre::LogManager::getSingleton().logMessage(parsedRef.toStdString());
+                    QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
 
                     if (fileLocation.startsWith("http"))
                         matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
                     else
-                        matList[output + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
+                        matList[parsedRef + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
 
                     QString tmp = sm->getMaterialName().c_str();
-                     Ogre::LogManager::getSingleton().logMessage(tmp.toStdString());
-                    matNameList.push_back(output + ".material");
+                    matNameList.push_back(tmp + ".material");
                 }
             }
         }
