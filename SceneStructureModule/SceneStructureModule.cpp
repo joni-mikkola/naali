@@ -188,7 +188,7 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
                 QString tmpDir = dirname.c_str();
                 tmpDir.remove(tmpDir.lastIndexOf('/'), tmpDir.length());
                 tmpDir.remove(0, tmpDir.lastIndexOf('/') + 1);
-                std::string fileRef = "file://" + tmpDir.toStdString() + "/models/";
+                std::string fileRef = "local://" + tmpDir.toStdString() + "/models/";
 
                 Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString(), dirname, worldtransform,
                     std::string(), fileRef.c_str(), AttributeChange::Default, false, "");

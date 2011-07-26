@@ -199,13 +199,15 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         // Strip file: trims asset provider id (f.ex. 'file://') and potential mesh name inside the file (everything after last slash)
         if (ref.startsWith("file://"))
+        {
             ref = ref.mid(7);
+            int lastSlash = ref.lastIndexOf('/');
+            if (lastSlash != -1)
+               ref = ref.left(lastSlash);
+        }
+
         if (ref.startsWith("local://"))
             ref = ref.mid(8);
-
-        //int lastSlash = ref.lastIndexOf('/');
-        //if (lastSlash != -1)
-        //   ref = ref.left(lastSlash);
 
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
@@ -223,7 +225,6 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         bool success;
 
-
         if (IsAssimpTexture(ref))
         {
 #ifdef ASSIMP_ENABLED
@@ -231,7 +232,6 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 #endif
         }
         else
-
             success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
 
         if (!success)

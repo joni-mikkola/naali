@@ -91,7 +91,7 @@
  <entity id="4">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
-   <attribute value="file://gable/models/gable.dae" name="Mesh ref"/>
+   <attribute value="local://gable/models/gable.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -110,7 +110,7 @@
    <attribute value="0" name="Mass"/>
    <attribute value="4" name="Shape type"/>
    <attribute value="1 1 1" name="Size"/>
-   <attribute value="file://gable/models/gable.dae" name="Collision mesh ref"/>
+   <attribute value="local://gable/models/gable.dae" name="Collision mesh ref"/>
    <attribute value="0.5" name="Friction"/>
    <attribute value="0" name="Restitution"/>
    <attribute value="0" name="Linear damping"/>
@@ -127,7 +127,7 @@
  <entity id="5">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
-   <attribute value="file://cityhouse/models/cityhouse.dae" name="Mesh ref"/>
+   <attribute value="local://cityhouse/models/cityhouse.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -146,7 +146,7 @@
    <attribute value="0" name="Mass"/>
    <attribute value="4" name="Shape type"/>
    <attribute value="1 1 1" name="Size"/>
-   <attribute value="file://cityhouse/models/cityhouse.dae" name="Collision mesh ref"/>
+   <attribute value="local://cityhouse/models/cityhouse.dae" name="Collision mesh ref"/>
    <attribute value="0.5" name="Friction"/>
    <attribute value="0" name="Restitution"/>
    <attribute value="0" name="Linear damping"/>
@@ -163,7 +163,7 @@
  <entity id="6">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
-   <attribute value="file://crowne/models/crowne.dae" name="Mesh ref"/>
+   <attribute value="local://crowne/models/crowne.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -182,7 +182,7 @@
  <entity id="7">
   <component type="EC_Mesh" sync="1">
    <attribute value="-2400,2700,0,90,0,190,0.1,0.1,0.1" name="Transform"/>
-   <attribute value="file://house2/models/house2.dae" name="Mesh ref"/>
+   <attribute value="local://house2/models/house2.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -201,7 +201,7 @@
  <entity id="8">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1,1,1" name="Transform"/>
-   <attribute value="file://bunga/models/bunga.dae" name="Mesh ref"/>
+   <attribute value="local://bunga/models/bunga.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -220,7 +220,7 @@
    <attribute value="0" name="Mass"/>
    <attribute value="4" name="Shape type"/>
    <attribute value="1 1 1" name="Size"/>
-   <attribute value="file://bunga/models/bunga.dae" name="Collision mesh ref"/>
+   <attribute value="local://bunga/models/bunga.dae" name="Collision mesh ref"/>
    <attribute value="0.5" name="Friction"/>
    <attribute value="0" name="Restitution"/>
    <attribute value="0" name="Linear damping"/>
@@ -237,7 +237,7 @@
  <entity id="9">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1.3,1.3,1.3" name="Transform"/>
-   <attribute value="file://mustang/models/mustang.dae" name="Mesh ref"/>
+   <attribute value="local://mustang/models/mustang.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -256,7 +256,7 @@
  <entity id="10">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
-   <attribute value="file://Samara/models/samara.dae" name="Mesh ref"/>
+   <attribute value="local://Samara/models/samara.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -275,7 +275,7 @@
  <entity id="11">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
-   <attribute value="file://house3/models/house3.dae" name="Mesh ref"/>
+   <attribute value="local://house3/models/house3.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -294,7 +294,7 @@
  <entity id="12">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
-   <attribute value="file://house4/models/house4.dae" name="Mesh ref"/>
+   <attribute value="local://house4/models/house4.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -313,7 +313,7 @@
  <entity id="13">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1.2,1.2,1.2" name="Transform"/>
-   <attribute value="file://casatentativa2/models/casatentativa2.dae" name="Mesh ref"/>
+   <attribute value="local://casatentativa2/models/casatentativa2.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -332,7 +332,7 @@
  <entity id="14">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,1.1,1.1,1.1" name="Transform"/>
-   <attribute value="file://farmhouse/models/farmhouse.dae" name="Mesh ref"/>
+   <attribute value="local://farmhouse/models/farmhouse.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -351,7 +351,7 @@
  <entity id="15">
   <component type="EC_Mesh" sync="1">
    <attribute value="-2000,-1000,0,90,0,180,0.02,0.02,0.02" name="Transform"/>
-   <attribute value="file://VAZ-21047/models/VAZ-21047.dae" name="Mesh ref"/>
+   <attribute value="local://VAZ-21047/models/VAZ-21047.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -370,7 +370,7 @@
  <entity id="16">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,180,0.2,0.2,0.2" name="Transform"/>
-   <attribute value="file://sofa/models/Sofa.3ds" name="Mesh ref"/>
+   <attribute value="local://sofa/models/Sofa.3ds" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -389,7 +389,7 @@
  <entity id="17">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,90,0,90,1,1,1" name="Transform"/>
-   <attribute value="file://Cessna/models/cessna.obj" name="Mesh ref"/>
+   <attribute value="local://Cessna/models/cessna.obj" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -408,7 +408,7 @@
  <entity id="18">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,0,0,0,1,1,1" name="Transform"/>
-   <attribute value="file://HUMAN.blend" name="Mesh ref"/>
+   <attribute value="local://HUMAN.blend" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -427,7 +427,7 @@
  <entity id="19">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,180,0,180,1,1,1" name="Transform"/>
-   <attribute value="file://jeep/models/jeep1.ms3d" name="Mesh ref"/>
+   <attribute value="local://jeep/models/jeep1.ms3d" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
@@ -446,7 +446,7 @@
  <entity id="20">
   <component type="EC_Mesh" sync="1">
    <attribute value="0,0,0,0,0,0,1,1,1" name="Transform"/>
-   <attribute value="file://duck/models/duck.dae" name="Mesh ref"/>
+   <attribute value="local://duck/models/duck.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>

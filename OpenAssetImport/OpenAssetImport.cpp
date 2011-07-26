@@ -23,6 +23,7 @@
 #include "OgreAnimationTrack.h"
 #include "OgreKeyFrame.h"
 #include <QString>
+#include <QStringList>
 #include <boost/tuple/tuple.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
@@ -38,13 +39,13 @@ inline Ogre::String toString(const aiColor4D& colour)
 
 int OpenAssetImport::msBoneCount = 0;
 
-inline void FixFileReference(QString &matRef, QString addRef)
+inline void FixLocalReference(QString &matRef, QString addRef)
 {
     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(0, addRef.lastIndexOf('/')+1);
-    addRef.insert(0, "file://");
+    addRef.insert(0, "local://");
     addRef.insert(addRef.length(), "/images/");
 
     size_t indx = matRef.indexOf("texture ", 0);
@@ -74,7 +75,7 @@ inline void FixHttpReference(QString &matRef, QString addRef)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -102,12 +103,12 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     // Some converted mesh might show up pretty messed up, it's happening because some formats might
     // contain unnecessary vertex information, lines and points. Uncomment the line below for fixing this issue.
 
-    //importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
+    importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE);
     /// END OF NOTICE
 
-    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
-    importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
-    importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
+    //importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
+    //importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
+    //importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
 
     // And have it read the given file with some example postprocessing
     // Usually - if speed is not the most important aspect for you - you'll
@@ -247,15 +248,17 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                         if (addr.startsWith("http"))
                             FixHttpReference(materialInfo, addr);
                         else
-                            FixFileReference(materialInfo, addr);
+                            FixLocalReference(materialInfo, addr);
                     }
 
-                    QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+                    QStringList parsedRef = fileLocation.split("/");
+                    int length=parsedRef.length();
+                    QString output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
 
                     if (fileLocation.startsWith("http"))
                         matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
                     else
-                        matList[parsedRef + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
+                        matList[output + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
 
                     QString tmp = sm->getMaterialName().c_str();
                     matNameList.push_back(tmp + ".material");
@@ -603,9 +606,6 @@ bool OpenAssetImport::IsSupportedExtension(QString extension)
             return true;
 
     return false;
-
-
-
 }
 
 void OpenAssetImport::markAllChildNodesAsNeeded(const aiNode *pNode)

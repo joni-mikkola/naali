@@ -1019,17 +1019,24 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         AssetReferenceList refList;
 
         QString fileLocation = asset->DiskSource();
-        QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+        //QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+
+        QStringList parsedRef = fileLocation.split("/");
+        int length=parsedRef.length();
+        QString output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
+
         // Loop through material list and insert each material separated with '#' from filename
         std::vector<QString> materialVector = framework_->Asset()->materialIndexMap[asset->DiskSource()];
         for (int i = 0; i < materialVector.size(); i++)
-            refList.Append(AssetReference(parsedRef + "#" + materialVector[i]));
+            refList.Append(AssetReference(output + "#" + materialVector[i]));
 
         meshMaterial.Set(refList, AttributeChange::Default);
     }
 #endif
 
+
     QString ogreMeshName = mesh->Name();
+
     if (mesh)
     {
         if (mesh->ogreMesh.get())
