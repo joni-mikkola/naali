@@ -47,6 +47,8 @@ private:
     void updateDownloads();
     int unpackDownload(QString file, QString & daeRef);
     void addToScene(QString pathToFile);
+    void saveHtmlPath();
+    void loadHtmlPath(QString file);
 
 private slots:
     void downloadRequested(const QNetworkRequest &);
