@@ -67,12 +67,12 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     addButton = new QPushButton(this);
     addButton->setText("ADD TO SCENE");
     addButton->setToolTip("Add the selected model to scene");
-    connect(addButton, SIGNAL(clicked()), this, SLOT(on_addButton_Clicked()));
+    connect(addButton, SIGNAL(clicked()), this, SLOT(addButton_Clicked()));
 
     removeButton = new QPushButton(this);
     removeButton->setText("DELETE");
     removeButton->setToolTip("Delete the downloaded model");
-    connect(removeButton, SIGNAL(clicked()), this, SLOT(on_removeButton_Clicked()));
+    connect(removeButton, SIGNAL(clicked()), this, SLOT(removeButton_Clicked()));
 
     toolBar->addAction(ui->warehouseView->pageAction(QWebPage::Back));
     toolBar->addAction(ui->warehouseView->pageAction(QWebPage::Forward));
@@ -116,7 +116,7 @@ void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
     qDebug()<<filename;
 }
 
-void G3dwhDialog::on_addButton_Clicked()
+void G3dwhDialog::addButton_Clicked()
 {
     if(ui->downloadList->currentItem())
     {
@@ -125,7 +125,7 @@ void G3dwhDialog::on_addButton_Clicked()
     }
 }
 
-void G3dwhDialog::on_removeButton_Clicked()
+void G3dwhDialog::removeButton_Clicked()
 {
     QString filename="models/"+ui->downloadList->currentItem()->text();
     QFile file(filename);
@@ -150,14 +150,10 @@ void G3dwhDialog::addToScene(QString pathToFile)
 
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
 {
-    qDebug()<<"Download requested";
-    //QString fileName=request.url().toString();
-    //QString fileName="testi.zip";
     QNetworkRequest newRequest = request;
     newRequest.setAttribute(QNetworkRequest::User,fileName);
     QNetworkAccessManager *networkManager = ui->warehouseView->page()->networkAccessManager();
     QNetworkReply *reply = networkManager->get(newRequest);
-    qDebug()<<reply->rawHeader("Content-Disposition");
 
     connect(reply, SIGNAL(metaDataChanged()),this, SLOT(readMetaData()));
     connect(reply, SIGNAL(downloadProgress(qint64, qint64)),this, SLOT(downloadProgress(qint64, qint64)));
@@ -178,17 +174,28 @@ void G3dwhDialog::downloadFinished()
 
     if( downloadAborted == false )
     {
+        QFile fileTest(fileName);
+
+        int index=0;
+
+        while(fileTest.exists())
+        {
+            QString indexStr;
+            indexStr.setNum(index);
+            QStringList newFileName=fileTest.fileName().split(".");
+            fileTest.setFileName(newFileName[0]+"_"+indexStr+"."+newFileName[1]);
+            fileName=fileTest.fileName();
+            index++;
+        }
+
         QFile file(fileName);
         if (file.open(QFile::ReadWrite))
         file.write(reply->readAll());
-        addToScene(fileName);
         file.close();
-
     }
 
     downloadAborted=false;
     updateDownloads();
-
 
 }
 
@@ -198,6 +205,9 @@ void G3dwhDialog::titleChanged(QString title)
     //QDir().mkdir("models/"+titleList[0]);
     QStringList parseList = titleList[0].split(" ");
     fileName="models/"+parseList.join("_")+".zip";
+    fileName.replace(",","");
+    fileName.replace(QRegExp("/[^a-zA-Z 0-9]+/g"),"");
+    qDebug()<<fileName;
 }
 
 void G3dwhDialog::urlChanged(QUrl url)
@@ -208,8 +218,6 @@ void G3dwhDialog::urlChanged(QUrl url)
     {
         ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     }
-
-    qDebug()<<url;
 }
 
 void G3dwhDialog::saveHtmlPath()
@@ -236,10 +244,8 @@ void G3dwhDialog::loadHtmlPath(QString file)
         {
             QStringList parseList=line.split("|");
             ui->warehouseView->load(QUrl(parseList[0]));
-            qDebug()<<parseList[0];
         }
     }
-
 
 }
 
@@ -256,9 +262,7 @@ void G3dwhDialog::linkHovered(QString url, QString title, QString content)
 void G3dwhDialog::readMetaData()
 {
     QNetworkReply *reply = ((QNetworkReply*)sender());
-    qDebug()<<"MetaData changed";
     QString dataType=reply->header(QNetworkRequest::ContentTypeHeader).toString();
-    qDebug()<<dataType;
     if (dataType != "application/zip")
     {
         downloadAborted=true;
@@ -272,24 +276,20 @@ void G3dwhDialog::readMetaData()
 void G3dwhDialog::updateDownloads()
 {
     ui->downloadList->clear();
-    //infoLabel->setText("");
 
     QDir dir("./models");
     QStringList nameFilters;
     nameFilters.append("*.zip");
     dir.setNameFilters(nameFilters);
     QStringList downloadedItems=dir.entryList();
+
     ui->downloadList->addItems(downloadedItems);
 }
 
 void G3dwhDialog::unsupportedContent(QNetworkReply *reply)
 {
-    qDebug()<<"Unsupported content";
-    qDebug()<<reply->url();
     QNetworkRequest request(reply->url());
     downloadRequested(request);
-    qDebug()<<reply->rawHeaderList();
-
 }
 
 void G3dwhDialog::setScenePath(QString scenePath)
