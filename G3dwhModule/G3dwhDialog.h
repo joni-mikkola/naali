@@ -7,10 +7,13 @@
 #include <QLabel>
 #include <QListWidgetItem>
 #include <QPushButton>
+#include <QMenu>
 
 #include "SceneFwd.h"
 #include "AssetReference.h"
 #include "IModule.h"
+
+#include <QWebFrame>
 
 namespace Ui {
     class G3dwhDialog;
@@ -24,11 +27,9 @@ public:
 
     void setScenePath(QString scenePath);
 
-
-
-
 protected:
     void changeEvent(QEvent *e);
+    QMenu *settingsMenu;
 
 private:
     Foundation::Framework * framework_;
@@ -38,11 +39,16 @@ private:
 
     QPushButton *addButton;
     QPushButton *removeButton;
+    QPushButton *menuButton;
     QLabel *infoLabel;
 
     QString fileName;
     QString sceneDir;
     bool downloadAborted;
+
+    QAction *nyan;
+    QAction *moar;
+    QAction *rawr;
 
     void updateDownloads();
     int unpackDownload(QString file, QString & daeRef);
@@ -62,8 +68,11 @@ private slots:
     void unsupportedContent(QNetworkReply*);
 
     void on_downloadList_itemClicked(QListWidgetItem *item);
-    void on_addButton_Clicked();
-    void on_removeButton_Clicked();
+    void addButton_Clicked();
+    void removeButton_Clicked();
+    void menuButton_Clicked();
+
+    void settingsMenuAction();
 };
 
 #endif // G3DWHDIALOG_H

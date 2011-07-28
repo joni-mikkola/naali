@@ -33,6 +33,8 @@
 #include "Transform.h"
 #include "SceneDesc.h"
 
+#include <QList>
+
 G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::G3dwhDialog)
@@ -47,6 +49,8 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
 
     ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     ui->warehouseView->show();
+
+
 
     downloadAborted=false;
     ui->downloadProgress->setValue(0);
@@ -63,6 +67,7 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
         QDir().mkdir("models");
     }
 
+
     addButton = new QPushButton(this);
     addButton->setText("ADD TO SCENE");
     addButton->setToolTip("Add the selected model to scene");
@@ -73,6 +78,22 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     removeButton->setToolTip("Delete the downloaded model");
     connect(removeButton, SIGNAL(clicked()), this, SLOT(removeButton_Clicked()));
 
+    menuButton = new QPushButton(this);
+    menuButton->setText("SETTINGS");
+    menuButton->setToolTip("Import Settings");
+    connect(menuButton, SIGNAL(clicked()), this, SLOT(menuButton_Clicked()));
+
+    settingsMenu = new QMenu();
+    nyan =  settingsMenu->addAction("NYAN");
+    nyan->setCheckable(true);
+    nyan->setChecked(false);
+    settingsMenu->addSeparator();
+    moar =  settingsMenu->addAction("MOAR NYAN");
+    settingsMenu->addSeparator();
+    rawr =  settingsMenu->addAction("RAWR");
+
+    connect(nyan, SIGNAL(triggered()), this, SLOT(settingsMenuAction()));
+
     toolBar->addAction(ui->warehouseView->pageAction(QWebPage::Back));
     toolBar->addAction(ui->warehouseView->pageAction(QWebPage::Forward));
     toolBar->addAction(ui->warehouseView->pageAction(QWebPage::Reload));
@@ -80,7 +101,9 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
 
     toolBar->addWidget(addButton);
     toolBar->addWidget(removeButton);
+    toolBar->addWidget(menuButton);
     toolBar->addWidget(infoLabel);
+
 
     connect(ui->warehouseView->page(), SIGNAL(unsupportedContent(QNetworkReply*)), this, SLOT(unsupportedContent(QNetworkReply*)));
 
@@ -112,7 +135,6 @@ void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
 {
     QString filename="models/"+item->text();
     loadHtmlPath(filename);
-    qDebug()<<filename;
 }
 
 void G3dwhDialog::addButton_Clicked()
@@ -130,6 +152,48 @@ void G3dwhDialog::removeButton_Clicked()
     QFile file(filename);
     file.remove();
     updateDownloads();
+
+    QFile htmlSources("models/sources");
+    if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
+    return;
+
+    QStringList fileContent;
+
+    while (!htmlSources.atEnd())
+    {
+        QByteArray fileInput = htmlSources.readLine();
+        QString line = fileInput;
+        if (!line.contains(filename,Qt::CaseInsensitive))
+        {
+            fileContent.append(line);
+        }
+    }
+
+    htmlSources.remove();
+
+    if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
+    return;
+
+    QTextStream out(&htmlSources);
+    for(int i=0; i<fileContent.length(); i++)
+    {
+        out << fileContent[i];
+    }
+
+}
+
+void G3dwhDialog::menuButton_Clicked()
+{
+    QPoint displayPoint = QCursor::pos();
+    settingsMenu->popup(displayPoint,0);
+}
+
+void G3dwhDialog::settingsMenuAction()
+{
+    if (nyan->isChecked())
+    qDebug()<<"nyan";
+    else
+    qDebug()<<"oh noes";
 }
 
 void G3dwhDialog::addToScene(QString pathToFile)
@@ -186,7 +250,12 @@ void G3dwhDialog::downloadFinished()
             QString indexStr;
             indexStr.setNum(index);
             QStringList newFileName=fileTest.fileName().split(".");
-            fileTest.setFileName(newFileName[0]+"_"+indexStr+"."+newFileName[1]);
+            QString modelName = newFileName[0];
+            qDebug()<<modelName;
+            modelName.replace(QRegExp("_[0-9]{1,9}$"),"");
+            qDebug()<<modelName;
+
+            fileTest.setFileName(modelName+"_"+indexStr+"."+newFileName[1]);
             fileName=fileTest.fileName();
             index++;
         }
@@ -209,8 +278,7 @@ void G3dwhDialog::titleChanged(QString title)
     QStringList parseList = titleList[0].split(" ");
     fileName="models/"+parseList.join("_")+".zip";
     fileName.replace(",","");
-    fileName.replace(QRegExp("/[^a-zA-Z 0-9]+/g"),"");
-    qDebug()<<fileName;
+
 }
 
 void G3dwhDialog::urlChanged(QUrl url)
@@ -219,7 +287,7 @@ void G3dwhDialog::urlChanged(QUrl url)
 
     if(!newUrl.contains("sketchup.google.com/3dwarehouse"))
     {
-        ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+  //      ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     }
 }
 
@@ -330,8 +398,15 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
       }
 
       if (name.endsWith(".dae"))
-          daeRef = targetName + name;
+      {
+          //workaround for problem when trying to add same model multiple times
+          //int mdlNumber=qrand();
+          //QString newName;
+          //newName.setNum(mdlNumber);
+          //name=newName+".dae";
 
+          daeRef = targetName + name;
+      }
       QString dirn = sceneDir + targetName + name;
 
       if (name.contains('/')) { // subdirectory support
