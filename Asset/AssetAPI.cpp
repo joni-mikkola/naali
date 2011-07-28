@@ -911,6 +911,8 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 
         // Store all the material stuff into a map
         this->materialMap.insert(import.matList.begin(), import.matList.end());
+
+        // Vector is needed for keeping index for each material. Map orders stuff put in
         this->materialIndexMap[transfer->asset->DiskSource()] = import.matNameList;
 
         Ogre::MeshSerializer serializer;

@@ -149,23 +149,20 @@ void G3dwhDialog::on_removeButton_Clicked()
 void G3dwhDialog::addToScene(QString pathToFile)
 {
     QString daeRef;
+
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
-    daeRef.insert(0, "file://");
 
     const Scene::ScenePtr &scene = framework_->Scene()->GetDefaultScene();
     TundraLogic::SceneImporter sceneimporter(scene);
 
-    std::string filename =  "";
-    std::string dirname = "";
-
     Transform worldtransform;
-    QString tmpDir = dirname.c_str();
-    std::string fileRef = daeRef.toStdString();
 
-    Scene::EntityPtr entity = sceneimporter.ImportMesh(filename, dirname, worldtransform, std::string(), fileRef.c_str(), AttributeChange::Default, false, "");
-    //if (entity)
-    //    ret.append(entity.get());
+    QString dirname = daeRef.mid(0, daeRef.lastIndexOf('/', 0));
+    QString filename = daeRef.mid(daeRef.lastIndexOf('/', daeRef.length()));
+    QString localRef = "local://";
+
+    Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString().c_str(), dirname.toStdString().c_str(), worldtransform, std::string(), localRef.toStdString().c_str(), AttributeChange::Default, false, "");
 }
 
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
@@ -203,6 +200,7 @@ void G3dwhDialog::downloadFinished()
         file.write(reply->readAll());
         addToScene(fileName);
         file.close();
+
     }
 
     downloadAborted=false;
