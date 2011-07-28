@@ -86,10 +86,12 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh/*, Ogre::Real scaleX, O
     Ogre::AxisAlignedBox mAAB = mMesh->getBounds();
     Ogre::Vector3 meshSize = mAAB.getSize();
     Ogre::Vector3 origSize = meshSize;
-    while (meshSize.x >= 10 && meshSize.y >= 10 && meshSize.z >= 10)
-        meshSize /= 5;
+    while (meshSize.x >= 10 || meshSize.y >= 10 || meshSize.z >= 10)
+        meshSize /= 2;
 
     Ogre::Real minCoefficient = meshSize.x / origSize.x;
+    Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(meshSize.x) + " " + Ogre::StringConverter::toString(meshSize.y) + " " + Ogre::StringConverter::toString(meshSize.z));
+
 
     // Iterate thru submeshes
     Ogre::Mesh::SubMeshIterator smit = mesh->getSubMeshIterator();
@@ -127,7 +129,7 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh/*, Ogre::Real scaleX, O
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
