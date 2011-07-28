@@ -31,6 +31,7 @@
 #include "UiMainWindow.h"
 #include "LoggingFunctions.h"
 #include "Transform.h"
+#include "../SceneStructureModule/SceneStructureModule.h"
 #include "SceneDesc.h"
 
 #include <QList>
@@ -199,20 +200,16 @@ void G3dwhDialog::settingsMenuAction()
 void G3dwhDialog::addToScene(QString pathToFile)
 {
     QString daeRef;
-
+    QList<Scene::Entity *> ret;
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
+    
+    bool clearScene = false;
+    SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
-    const Scene::ScenePtr &scene = framework_->Scene()->GetDefaultScene();
-    TundraLogic::SceneImporter sceneimporter(scene);
-
-    Transform worldtransform;
-
-    QString dirname = daeRef.mid(0, daeRef.lastIndexOf('/', 0));
-    QString filename = daeRef.mid(daeRef.lastIndexOf('/', daeRef.length()));
-    QString localRef = "local://";
-
-    Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString().c_str(), dirname.toStdString().c_str(), worldtransform, std::string(), localRef.toStdString().c_str(), AttributeChange::Default, false, "");
+    qDebug() << daeRef;
+    if (sceneStruct)
+        sceneStruct->InstantiateContent(daeRef, Vector3df(), clearScene);
 }
 
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
