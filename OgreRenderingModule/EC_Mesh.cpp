@@ -913,6 +913,7 @@ void EC_Mesh::OnAttributeUpdated(IAttribute *attribute)
         
         if (adjustmentTarget)
         {
+
             Transform newTransform = nodeTransformation.Get();
             adjustmentTarget->setPosition(newTransform.position.x, newTransform.position.y, newTransform.position.z);
             Quaternion adjust(DEGTORAD * newTransform.rotation.x,
@@ -931,6 +932,8 @@ void EC_Mesh::OnAttributeUpdated(IAttribute *attribute)
                 newTransform.scale.z = 0.0000001f;
             
             adjustmentTarget->setScale(newTransform.scale.x, newTransform.scale.y, newTransform.scale.z);
+
+
         }
     }
     else if (attribute == &meshRef)
@@ -1011,6 +1014,7 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         LogError("OnMeshAssetLoaded: Mesh asset load finished for asset \"" + asset->Name().toStdString() + "\", but downloaded asset was not of type OgreMeshAsset!");
         return;
     }
+
 
 #ifdef ASSIMP_ENABLED
     if (IsAssimpSupported(asset->DiskSource()))

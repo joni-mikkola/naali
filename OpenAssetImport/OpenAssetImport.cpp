@@ -22,6 +22,7 @@
 #include "OgreAnimation.h"
 #include "OgreAnimationTrack.h"
 #include "OgreKeyFrame.h"
+#include "OgreVector3.h"
 #include <QString>
 #include <QStringList>
 #include <boost/tuple/tuple.hpp>
@@ -39,7 +40,7 @@ inline Ogre::String toString(const aiColor4D& colour)
 
 int OpenAssetImport::msBoneCount = 0;
 
-inline void FixLocalReference(QString &matRef, QString addRef)
+void FixLocalReference(QString &matRef, QString addRef)
 {
     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
@@ -52,7 +53,7 @@ inline void FixLocalReference(QString &matRef, QString addRef)
     matRef.replace(indx+8, 0, addRef + '/');
 }
 
-inline void FixHttpReference(QString &matRef, QString addRef)
+void FixHttpReference(QString &matRef, QString addRef)
 {
     addRef.replace(0, 7, "http://");
     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
@@ -71,7 +72,58 @@ inline void FixHttpReference(QString &matRef, QString addRef)
     matRef.replace(indx+8, 0, addRef);
 }
 
+#define pi 3.14159265
 
+double degreeToRadian(double degree)
+{
+        double radian = 0;
+        radian = degree * (pi/180);
+        return radian;
+}
+
+void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh/*, Ogre::Real scaleX, Ogre::Real scaleY, Ogre::Real scaleZ*/)
+{ 
+    Ogre::AxisAlignedBox mAAB = mMesh->getBounds();
+    Ogre::Vector3 meshSize = mAAB.getSize();
+    Ogre::Vector3 origSize = meshSize;
+    while (meshSize.x >= 10 && meshSize.y >= 10 && meshSize.z >= 10)
+        meshSize /= 5;
+
+    Ogre::Real minCoefficient = meshSize.x / origSize.x;
+
+    // Iterate thru submeshes
+    Ogre::Mesh::SubMeshIterator smit = mesh->getSubMeshIterator();
+    while( smit.hasMoreElements() )
+    {
+        Ogre::SubMesh* submesh = smit.getNext();
+        if(submesh)
+        {
+            Ogre::VertexData* vertex_data = submesh->vertexData;
+            if(vertex_data)
+            {
+                const Ogre::VertexElement* posElem = vertex_data->vertexDeclaration->findElementBySemantic(Ogre::VES_POSITION);
+                Ogre::HardwareVertexBufferSharedPtr vbuf = vertex_data->vertexBufferBinding->getBuffer(posElem->getSource());
+                unsigned char* vertex = static_cast<unsigned char*>(vbuf->lock(Ogre::HardwareBuffer::HBL_NORMAL));
+                Ogre::Real* points;
+
+                for(size_t j = 0; j < vertex_data->vertexCount; ++j, vertex += vbuf->getVertexSize())
+                {
+                    posElem->baseVertexPointerToElement(vertex, (void **)&points);
+                    points[0] *= minCoefficient;
+                    points[1] *= minCoefficient;
+                    points[2] *= minCoefficient;
+                }
+
+                vbuf->unlock();
+            }
+        }
+    }
+
+    Ogre::Vector3 scale(minCoefficient, minCoefficient, minCoefficient);
+    mAAB.scale(scale);
+
+    mMesh->_setBounds(mAAB);
+}
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
@@ -103,7 +155,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     // Some converted mesh might show up pretty messed up, it's happening because some formats might
     // contain unnecessary vertex information, lines and points. Uncomment the line below for fixing this issue.
 
-    importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE);
+    importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
     /// END OF NOTICE
 
     //importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
@@ -139,7 +191,13 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     grabNodeNamesFromNode(scene, scene->mRootNode);
     grabBoneNamesFromNode(scene, scene->mRootNode);
 
-    computeNodesDerivedTransform(scene, scene->mRootNode, scene->mRootNode->mTransformation);
+
+    const struct aiNode *rootNode = scene->mRootNode;
+
+    aiMatrix4x4 transform;
+    transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
+
+    computeNodesDerivedTransform(scene, scene->mRootNode, transform);
 
     if(mBonesByName.size())
     {
@@ -160,10 +218,9 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     }
 
     loadDataFromNode(scene, scene->mRootNode, mPath);
-
     Ogre::LogManager::getSingleton().logMessage("*** Finished loading ass file ***");
     Assimp::DefaultLogger::kill();
-
+    
     if(!mSkeleton.isNull())
     {
         unsigned short numBones = mSkeleton->getNumBones();
@@ -193,6 +250,9 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             Ogre::SubMesh* sm = smIt.getNext();
             if (!sm->useSharedVertices)
             {
+
+
+
                 // AutogreMaterialic
 #if OGRE_VERSION_MINOR >= 8 && OGRE_VERSION_MAJOR >= 1
                 Ogre::VertexDeclaration* newDcl =
@@ -210,6 +270,10 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                     sm->vertexData->reorganiseBuffers(newDcl, bufferUsages);
                 }
             }
+
+
+
+
         }
     }
 
@@ -225,7 +289,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         int tick = 0;
         for(MeshVector::iterator it = mMeshes.begin(); it != mMeshes.end(); ++it)
         {
-            Ogre::MeshPtr mMesh = *it;
+            mMesh = *it;
 
             // queue up the materials for serialise
             Ogre::MaterialManager *mmptr = Ogre::MaterialManager::getSingletonPtr();
@@ -234,6 +298,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             while(it.hasMoreElements())
             {
                 Ogre::SubMesh* sm = it.getNext();
+
                 Ogre::String matName(sm->getMaterialName());
                 if (std::find(exportedNames.begin(), exportedNames.end(), matName) == exportedNames.end())
                 {
@@ -276,6 +341,9 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     mSkeleton = Ogre::SkeletonPtr(NULL);
     mCustomAnimationName = "";
     // etc...
+
+
+    linearScaleMesh(mMesh);
 
     // Ogre::MaterialManager::getSingleton().
     Ogre::MeshManager::getSingleton().removeUnreferencedResources();
@@ -561,7 +629,7 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
 
                     aiQuaternion aiRot = getRotate(node_anim, keyframes, it);
                     Ogre::Quaternion rot(aiRot.w, aiRot.x, aiRot.y, aiRot.z);
-                    Ogre::Vector3 scale(1,1,1);	// ignore scale for now
+                    Ogre::Vector3 scale(1,1,1);	//   ignore scale for now
 
                     Ogre::Vector3 transCopy = trans;
 

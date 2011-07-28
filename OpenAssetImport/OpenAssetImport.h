@@ -52,9 +52,11 @@ public:
     const Ogre::String& getBasename(){ return mBasename; }
     bool IsSupportedExtension(QString extension);
 
+
 private:
     QString addr;
     bool generateMaterials;
+    void linearScaleMesh(Ogre::MeshPtr mesh);
     bool createSubMesh(const Ogre::String& name, int index, const aiNode* pNode, const aiMesh *mesh, const aiMaterial* mat, Ogre::MeshPtr pMesh, Ogre::AxisAlignedBox& mAAB, const Ogre::String& mDir);
     Ogre::MaterialPtr createMaterial(int index, const aiMaterial* mat, const Ogre::String& mDir);
     Ogre::MaterialPtr createMaterialByScript(int index, const aiMaterial* mat);
