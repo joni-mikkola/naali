@@ -111,22 +111,8 @@ void G3dwhDialog::changeEvent(QEvent *e)
 void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
 {
     QString filename="models/"+item->text();
-    //addToScene(filename);
-    QString searchUrl = item->text();
-    searchUrl.replace("_","+");
-    searchUrl.replace(".zip","");
-
-    if (searchUrl.contains("&"))
-    {
-        searchUrl.replace("&","%26");
-        QUrl url = QUrl::fromEncoded("http://sketchup.google.com/3dwarehouse/search?q=\"" +searchUrl.toAscii() +"\"&styp=m&btnG=Search");
-        ui->warehouseView->load(url);
-    }
-    else
-        ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/search?q=\"" +searchUrl +"\"&styp=m&btnG=Search"));
-
-    //qDebug()<<QUrl("http://sketchup.google.com/3dwarehouse/search?q=\"" +searchUrl +"\"&styp=m&btnG=Search");
-
+    loadHtmlPath(filename);
+    qDebug()<<filename;
 }
 
 void G3dwhDialog::on_addButton_Clicked()
@@ -212,9 +198,9 @@ void G3dwhDialog::downloadFinished()
 void G3dwhDialog::titleChanged(QString title)
 {
     QStringList titleList = title.split(" by");
-    //QDir().mkdir("models//"+titleList[0]);
+    //QDir().mkdir("models/"+titleList[0]);
     QStringList parseList = titleList[0].split(" ");
-    fileName="models//"+parseList.join("_")+".zip";
+    fileName="models/"+parseList.join("_")+".zip";
 }
 
 void G3dwhDialog::urlChanged(QUrl url)
@@ -227,6 +213,37 @@ void G3dwhDialog::urlChanged(QUrl url)
     }
 
     qDebug()<<url;
+}
+
+void G3dwhDialog::saveHtmlPath()
+{
+    QFile htmlSources("models/sources");
+    if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
+    return;
+
+    QTextStream out(&htmlSources);
+    out << ui->warehouseView->url().toString()+"|"+fileName+"\n";
+}
+
+void G3dwhDialog::loadHtmlPath(QString file)
+{
+    QFile htmlSources("models/sources");
+    if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
+    return;
+
+    while (!htmlSources.atEnd())
+    {
+        QByteArray fileInput = htmlSources.readLine();
+        QString line = fileInput;
+        if (line.contains(file,Qt::CaseInsensitive))
+        {
+            QStringList parseList=line.split("|");
+            ui->warehouseView->load(QUrl(parseList[0]));
+            qDebug()<<parseList[0];
+        }
+    }
+
+
 }
 
 void G3dwhDialog::loadFinished()
@@ -251,7 +268,8 @@ void G3dwhDialog::readMetaData()
         reply->close();
         infoLabel->setText("Wrong format, select Collada if available.");
     }
-
+    else
+    saveHtmlPath();
 }
 
 void G3dwhDialog::updateDownloads()
