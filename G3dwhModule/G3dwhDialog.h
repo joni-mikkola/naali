@@ -55,6 +55,7 @@ private:
     void addToScene(QString pathToFile);
     void saveHtmlPath();
     void loadHtmlPath(QString file);
+    void checkDirStructure(QString pathToDir, QString & daeRef);
 
 private slots:
     void downloadRequested(const QNetworkRequest &);

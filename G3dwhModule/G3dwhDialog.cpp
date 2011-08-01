@@ -5,6 +5,7 @@
 #include <QDir>
 #include <QFile>
 #include <QString>
+#include <QDirIterator>
 
 #include "quazip/quazip.h"
 #include "quazip/quazipfile.h"
@@ -33,8 +34,6 @@
 #include "Transform.h"
 #include "../SceneStructureModule/SceneStructureModule.h"
 #include "SceneDesc.h"
-
-#include <QList>
 
 G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     QDialog(parent),
@@ -203,13 +202,58 @@ void G3dwhDialog::addToScene(QString pathToFile)
     QList<Scene::Entity *> ret;
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
+    checkDirStructure(pathToFile, daeRef);
     
     bool clearScene = false;
     SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
-    qDebug() << daeRef;
     if (sceneStruct)
         sceneStruct->InstantiateContent(daeRef, Vector3df(), clearScene);
+}
+
+void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
+{
+    QString targetDirName = sceneDir+pathToDir.replace(".zip","/");
+
+    QDir imagesDir(targetDirName+"/images");
+    QDir modelsDir(targetDirName+"/models");
+    if(imagesDir.exists()&&modelsDir.exists())
+        return;
+    else
+    {
+        QDir().mkpath(targetDirName+"/images");
+        QDir().mkpath(targetDirName+"/models");
+
+        QString dirContent;
+        QStringList filter;
+        filter<<"*.dae"<<"*.jpg"<<"*.png"<<"*.gif"<<"*.jpeg";
+        QDirIterator dirIterator(targetDirName,filter,QDir::Files|QDir::NoSymLinks|QDir::NoDotAndDotDot,QDirIterator::Subdirectories);
+
+        while(dirIterator.hasNext())
+        {
+            dirIterator.next();
+            dirContent=dirIterator.fileName();
+
+            if(dirContent.contains(".dae"))
+            {
+                QFile daeFile(targetDirName+dirContent);
+                daeFile.rename(targetDirName+"/models/"+dirContent);
+                daeRef=targetDirName+"/models/"+dirContent;
+            }
+            for(int i=1;i<filter.length();i++)
+            {
+                QString imageFilter=filter[i];
+                imageFilter.replace("*","");
+                if(dirContent.contains(imageFilter))
+                {
+                    QFile imageFile(targetDirName+dirContent);
+                    imageFile.rename(targetDirName+"/images/"+dirContent);
+                }
+            }
+        }
+    }
+
+
 }
 
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
@@ -290,7 +334,7 @@ void G3dwhDialog::urlChanged(QUrl url)
 
 void G3dwhDialog::saveHtmlPath()
 {
-    QFile htmlSources("models/sources");
+    QFile htmlSources(QDir().currentPath()+"/models/sources");
     if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
     return;
 
@@ -300,7 +344,7 @@ void G3dwhDialog::saveHtmlPath()
 
 void G3dwhDialog::loadHtmlPath(QString file)
 {
-    QFile htmlSources("models/sources");
+    QFile htmlSources(QDir().currentPath()+"/models/sources");
     if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
     return;
 
@@ -345,7 +389,7 @@ void G3dwhDialog::updateDownloads()
 {
     ui->downloadList->clear();
 
-    QDir dir("./models");
+    QDir dir(QDir().currentPath()+"/models");
     QStringList nameFilters;
     nameFilters.append("*.zip");
     dir.setNameFilters(nameFilters);
@@ -371,6 +415,28 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
     QFile outFile;
 
     QString targetName = file.replace(".zip","/");
+
+    qDebug()<<sceneDir+targetName;
+
+    QDir testDir(sceneDir+targetName);
+    QStringList filter;
+    filter<<"*.dae";
+    if(testDir.exists())
+    {
+        QDirIterator dirIterator(testDir.absolutePath(),filter,QDir::AllDirs|QDir::Files|QDir::NoSymLinks|QDir::NoDotAndDotDot,QDirIterator::Subdirectories);
+
+        while(dirIterator.hasNext())
+        {
+            dirIterator.next();
+            daeRef=dirIterator.fileName();
+        }
+        return true;
+    }
+    else
+    {
+        qDebug()<<sceneDir+targetName;
+        QDir().mkpath(sceneDir+targetName);
+    }
 
     QuaZip zip(inFile.fileName());
 
@@ -413,22 +479,29 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
         QDir().mkpath(dirn);
       }
       outFile.setFileName( sceneDir + targetName + name);
+
+
       outFile.open(QIODevice::WriteOnly);
       char buf[4096];
       int len = 0;
-      while (zFile.getChar(&c)) {
-        // we could just do this, but it's about 40% slower:
-        // out.putChar(c);
-        buf[len++] = c;
-        if (len >= 4096) {
-          outFile.write(buf, len);
-          len = 0;
+      while (zFile.getChar(&c))
+      {
+          // we could just do this, but it's about 40% slower:
+          // out.putChar(c);
+          buf[len++] = c;
+          if (len >= 4096)
+          {
+            outFile.write(buf, len);
+            len = 0;
+          }
+      }
+      if (len > 0)
+        {
+            outFile.write(buf, len);
         }
-      }
-      if (len > 0) {
-        outFile.write(buf, len);
-      }
       outFile.close();
+
+
       if(zFile.getZipError()!=UNZ_OK) {
         qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
         return false;
