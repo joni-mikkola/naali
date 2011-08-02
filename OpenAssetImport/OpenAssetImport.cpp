@@ -81,17 +81,15 @@ double degreeToRadian(double degree)
         return radian;
 }
 
-void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh/*, Ogre::Real scaleX, Ogre::Real scaleY, Ogre::Real scaleZ*/)
-{ 
+void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
+{
     Ogre::AxisAlignedBox mAAB = mMesh->getBounds();
     Ogre::Vector3 meshSize = mAAB.getSize();
     Ogre::Vector3 origSize = meshSize;
-    while (meshSize.x >= 10 || meshSize.y >= 10 || meshSize.z >= 10)
+    while (meshSize.x >= targetSize || meshSize.y >= targetSize || meshSize.z >= targetSize)
         meshSize /= 2;
 
     Ogre::Real minCoefficient = meshSize.x / origSize.x;
-    Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(meshSize.x) + " " + Ogre::StringConverter::toString(meshSize.y) + " " + Ogre::StringConverter::toString(meshSize.z));
-
 
     // Iterate thru submeshes
     Ogre::Mesh::SubMeshIterator smit = mesh->getSubMeshIterator();
@@ -160,7 +158,11 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
     /// END OF NOTICE
 
-    //importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
+    // Limit triangles because for each mesh there's limited index memory (16bit)
+    // ...which should be easy to just change to 32 bit but it didn't seem to be the case
+    importer.SetPropertyInteger(AI_CONFIG_PP_SLM_TRIANGLE_LIMIT, 21845);
+
+    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS|aiComponent_COLORS);
     //importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
     //importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
 
@@ -170,7 +172,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     scene = importer.ReadFile(filename, 0 //aiProcessPreset_TargetRealtime_MaxQuality |  aiProcess_PreTransformVertices);/*
                               | aiProcess_SplitLargeMeshes
                               | aiProcess_FindInvalidData
-                              | aiProcess_GenNormals                        
+                              | aiProcess_GenSmoothNormals
                               | aiProcess_Triangulate
                               | aiProcess_FlipUVs
                               | aiProcess_JoinIdenticalVertices
@@ -334,6 +336,8 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
     }
 
+    linearScaleMesh(mMesh, 10);
+
     //
     mMeshes.clear();
     mMaterialCode = "";
@@ -343,9 +347,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     mSkeleton = Ogre::SkeletonPtr(NULL);
     mCustomAnimationName = "";
     // etc...
-
-
-    linearScaleMesh(mMesh);
 
     // Ogre::MaterialManager::getSingleton().
     Ogre::MeshManager::getSingleton().removeUnreferencedResources();
