@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QString>
 #include <QDirIterator>
+#include <QMouseEvent>
 
 #include "quazip/quazip.h"
 #include "quazip/quazipfile.h"
@@ -104,12 +105,12 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     toolBar->addWidget(menuButton);
     toolBar->addWidget(infoLabel);
 
+    ui->warehouseView->installEventFilter(this);
 
     connect(ui->warehouseView->page(), SIGNAL(unsupportedContent(QNetworkReply*)), this, SLOT(unsupportedContent(QNetworkReply*)));
 
     connect(ui->warehouseView, SIGNAL(loadFinished(bool)), this, SLOT(loadFinished()));
     connect(ui->warehouseView->page(), SIGNAL(downloadRequested(const QNetworkRequest&)), this, SLOT(downloadRequested(const QNetworkRequest&)));
-    connect(ui->warehouseView, SIGNAL(titleChanged(QString)), this, SLOT(titleChanged(QString)));
     connect(ui->warehouseView, SIGNAL(urlChanged(QUrl)), this, SLOT(urlChanged(QUrl)));
     connect(ui->warehouseView->page(), SIGNAL(linkHovered(QString,QString,QString)), SLOT(linkHovered(QString,QString,QString)));
 }
@@ -129,6 +130,27 @@ void G3dwhDialog::changeEvent(QEvent *e)
     default:
         break;
     }
+}
+
+bool G3dwhDialog::eventFilter(QObject *o, QEvent *e)
+{
+    if(e->type() == QEvent::MouseButtonPress)
+    {
+        QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(e);
+        if (mouseEvent->button() == Qt::XButton1)
+        {
+            ui->warehouseView->triggerPageAction(QWebPage::Back, false);
+            mouseEvent->accept();
+            return true;
+        }
+        if (mouseEvent->button() == Qt::XButton2)
+        {
+            ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
+            mouseEvent->accept();
+            return true;
+        }
+    }
+    return false;
 }
 
 void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
@@ -259,7 +281,7 @@ void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
 {
     QNetworkRequest newRequest = request;
-    newRequest.setAttribute(QNetworkRequest::User,fileName);
+    newRequest.setAttribute(QNetworkRequest::User,"tmpFileName");
     QNetworkAccessManager *networkManager = ui->warehouseView->page()->networkAccessManager();
     QNetworkReply *reply = networkManager->get(newRequest);
 
@@ -309,16 +331,6 @@ void G3dwhDialog::downloadFinished()
 
     downloadAborted=false;
     updateDownloads();
-
-}
-
-void G3dwhDialog::titleChanged(QString title)
-{
-    QStringList titleList = title.split(" by");
-    //QDir().mkdir("models/"+titleList[0]);
-    QStringList parseList = titleList[0].split(" ");
-    fileName="models/"+parseList.join("_")+".zip";
-    fileName.replace(",","");
 
 }
 
@@ -382,7 +394,14 @@ void G3dwhDialog::readMetaData()
         infoLabel->setText("Wrong format, select Collada if available.");
     }
     else
-    saveHtmlPath();
+    {
+        QStringList titleList = ui->warehouseView->title().split(" by");
+        QStringList parseList = titleList[0].split(" ");
+        fileName="models/"+parseList.join("_")+".zip";
+        fileName.replace(",","");
+
+        saveHtmlPath();
+    }
 }
 
 void G3dwhDialog::updateDownloads()
@@ -462,12 +481,7 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
 
       if (name.endsWith(".dae"))
       {
-          //workaround for problem when trying to add same model multiple times
-          //int mdlNumber=qrand();
-          //QString newName;
-          //newName.setNum(mdlNumber);
-          //name=newName+".dae";
-
+          name.replace(" ","");
           daeRef = targetName + name;
       }
       QString dirn = sceneDir + targetName + name;

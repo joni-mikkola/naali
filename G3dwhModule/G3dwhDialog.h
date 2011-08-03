@@ -29,6 +29,7 @@ public:
 
 protected:
     void changeEvent(QEvent *e);
+    bool eventFilter(QObject *o, QEvent *e);
     QMenu *settingsMenu;
 
 private:
@@ -61,7 +62,6 @@ private slots:
     void downloadRequested(const QNetworkRequest &);
     void downloadFinished();
     void downloadProgress(qint64, qint64);
-    void titleChanged(QString);
     void urlChanged(QUrl);
     void linkHovered(QString,QString,QString);
     void readMetaData();
