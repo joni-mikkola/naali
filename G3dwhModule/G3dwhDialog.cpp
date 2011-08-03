@@ -19,8 +19,8 @@
 #include "../SceneStructureModule/SceneStructureModule.h"
 
 G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
-        QDialog(parent),
-        ui(new Ui::G3dwhDialog)
+    QDialog(parent),
+    ui(new Ui::G3dwhDialog)
 {
     ui->setupUi(this);
 
@@ -33,7 +33,7 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     ui->warehouseView->show();
 
-
+    multiSelectionList.clear();
 
     downloadAborted=false;
     ui->downloadProgress->setValue(0);
@@ -102,6 +102,20 @@ G3dwhDialog::~G3dwhDialog()
     delete ui;
 }
 
+void G3dwhDialog::keyPressEvent(QKeyEvent *e)
+{
+    ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
+    multiSelection=true;
+}
+
+void G3dwhDialog::keyReleaseEvent(QKeyEvent *e)
+{
+    multiSelectionList.clear();
+    ui->downloadList->clearSelection();
+    ui->downloadList->setSelectionMode(QAbstractItemView::SingleSelection);
+    multiSelection=false;
+}
+
 void G3dwhDialog::changeEvent(QEvent *e)
 {
     QDialog::changeEvent(e);
@@ -137,54 +151,84 @@ bool G3dwhDialog::eventFilter(QObject *o, QEvent *e)
 
 void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
 {
-    QString filename="models/"+item->text();
-    loadHtmlPath(filename);
+    if(multiSelection)
+    {
+        multiSelectionList.append("models/"+item->text());
+        loadHtmlPath(multiSelectionList.last());
+    }
+    else
+    {
+        QString filename="models/"+item->text();
+        loadHtmlPath(filename);
+    }
 }
 
 void G3dwhDialog::addButton_Clicked()
 {
     if(ui->downloadList->currentItem())
     {
-        QString filename="models/"+ui->downloadList->currentItem()->text();
-        addToScene(filename);
+        if(multiSelection)
+        {
+            for(int i=0;i<multiSelectionList.length();i++)
+            {
+                QString filename=multiSelectionList.takeAt(i);
+                addToScene(filename);
+            }
+        }
+        else
+        {
+            QString filename="models/"+ui->downloadList->currentItem()->text();
+            addToScene(filename);
+        }
     }
 }
 
 void G3dwhDialog::removeButton_Clicked()
 {
-    QString filename="models/"+ui->downloadList->currentItem()->text();
-    QFile file(filename);
-    file.remove();
-    updateDownloads();
-
-    QFile htmlSources("models/sources");
-    if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
-        return;
-
-    QStringList fileContent;
-
-    while (!htmlSources.atEnd())
+    QStringList removeList;
+    if(multiSelection)
     {
-        QByteArray fileInput = htmlSources.readLine();
-        QString line = fileInput;
-        if (!line.contains(filename,Qt::CaseInsensitive))
+        removeList=multiSelectionList;
+    }
+    else
+        removeList.append("models/"+ui->downloadList->currentItem()->text());
+
+    for(int i=0;i<removeList.length();i++)
+    {
+        QString filename=removeList[i];
+        QFile file(filename);
+        file.remove();
+        updateDownloads();
+
+        QFile htmlSources("models/sources");
+        if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
+            return;
+
+        QStringList fileContent;
+
+        while (!htmlSources.atEnd())
         {
-            fileContent.append(line);
+            QByteArray fileInput = htmlSources.readLine();
+            QString line = fileInput;
+            if (!line.contains(filename,Qt::CaseInsensitive))
+            {
+                fileContent.append(line);
+            }
+        }
+
+        htmlSources.remove();
+
+        if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
+            return;
+
+        QTextStream out(&htmlSources);
+        for(int i=0; i<fileContent.length(); i++)
+        {
+            out << fileContent[i];
         }
     }
-
-    htmlSources.remove();
-
-    if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
-        return;
-
-    QTextStream out(&htmlSources);
-    for(int i=0; i<fileContent.length(); i++)
-    {
-        out << fileContent[i];
-    }
-
 }
+
 
 void G3dwhDialog::menuButton_Clicked()
 {
@@ -207,7 +251,6 @@ void G3dwhDialog::addToScene(QString pathToFile)
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
     checkDirStructure(pathToFile, daeRef);
-    qDebug() << daeRef;
     bool clearScene = false;
     SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
@@ -221,7 +264,7 @@ void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
 
     QDir imagesDir(targetDirName+"/images");
     QDir modelsDir(targetDirName+"/models");
-    if(imagesDir.exists()&&modelsDir.exists())
+    if(imagesDir.exists() && modelsDir.exists())
         return;
     else
     {
@@ -296,9 +339,7 @@ void G3dwhDialog::downloadFinished()
             indexStr.setNum(index);
             QStringList newFileName=fileTest.fileName().split(".");
             QString modelName = newFileName[0];
-            qDebug()<<modelName;
             modelName.replace(QRegExp("_[0-9]{1,9}$"),"");
-            qDebug()<<modelName;
 
             fileTest.setFileName(modelName+"_"+indexStr+"."+newFileName[1]);
             fileName=fileTest.fileName();
@@ -312,6 +353,7 @@ void G3dwhDialog::downloadFinished()
     }
 
     downloadAborted=false;
+    saveHtmlPath();
     updateDownloads();
 
 }
@@ -333,7 +375,7 @@ void G3dwhDialog::saveHtmlPath()
         return;
 
     QTextStream out(&htmlSources);
-    out << ui->warehouseView->url().toString()+"|"+fileName+"\n";
+    out << htmlSource+"|"+fileName+"\n";
 }
 
 void G3dwhDialog::loadHtmlPath(QString file)
@@ -381,8 +423,8 @@ void G3dwhDialog::readMetaData()
         QStringList parseList = titleList[0].split(" ");
         fileName="models/"+parseList.join("_")+".zip";
         fileName.replace(",","");
+        htmlSource = ui->warehouseView->url().toString();
 
-        saveHtmlPath();
     }
 }
 
