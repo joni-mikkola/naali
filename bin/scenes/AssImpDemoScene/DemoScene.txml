@@ -283,7 +283,7 @@
    <attribute value="0,0,0,0,0,0,1,1,1" name="Transform"/>
    <attribute value="local://farmhouse/models/farmhouse.dae" name="Mesh ref"/>
    <attribute value="" name="Skeleton ref"/>
-   <attribute value="0" name="Draw distance"/>
+    <attribute value="0" name="Draw distance"/>
    <attribute value="true" name="Cast shadows"/>
   </component>
   <component type="EC_Name" sync="1">
@@ -402,6 +402,25 @@
   </component>
   <component type="EC_Name" sync="1">
    <attribute value="Duck" name="name"/>
+   <attribute value="" name="description"/>
+   <attribute value="false" name="user-defined"/>
+  </component>
+  <component type="EC_Placeable" sync="1">
+   <attribute value="-4,8,-5.3,0,0,0,1,1,1" name="Transform"/>
+   <attribute value="false" name="Show bounding box"/>
+   <attribute value="true" name="Visible"/>
+  </component>
+ </entity>
+ <entity id="21">
+  <component type="EC_Mesh" sync="1">
+   <attribute value="0,-17,0.5,0,0,0,1,1,1" name="Transform"/>
+   <attribute value="local://tent_dome/models/TentDome.dae" name="Mesh ref"/>
+   <attribute value="" name="Skeleton ref"/>
+   <attribute value="0" name="Draw distance"/>
+   <attribute value="true" name="Cast shadows"/>
+  </component>
+  <component type="EC_Name" sync="1">
+   <attribute value="Tent dome" name="name"/>
    <attribute value="" name="description"/>
    <attribute value="false" name="user-defined"/>
   </component>
