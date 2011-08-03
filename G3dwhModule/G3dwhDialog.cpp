@@ -51,7 +51,7 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     ui->warehouseView->show();
 
-
+    multiSelectionList.clear();
 
     downloadAborted=false;
     ui->downloadProgress->setValue(0);
@@ -120,6 +120,20 @@ G3dwhDialog::~G3dwhDialog()
     delete ui;
 }
 
+void G3dwhDialog::keyPressEvent(QKeyEvent *e)
+{
+    ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
+    multiSelection=true;
+}
+
+void G3dwhDialog::keyReleaseEvent(QKeyEvent *e)
+{
+    multiSelectionList.clear();
+    ui->downloadList->clearSelection();
+    ui->downloadList->setSelectionMode(QAbstractItemView::SingleSelection);
+    multiSelection=false;
+}
+
 void G3dwhDialog::changeEvent(QEvent *e)
 {
     QDialog::changeEvent(e);
@@ -155,51 +169,84 @@ bool G3dwhDialog::eventFilter(QObject *o, QEvent *e)
 
 void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
 {
-    QString filename="models/"+item->text();
-    loadHtmlPath(filename);
+    if(multiSelection)
+    {
+        multiSelectionList.append("models/"+item->text());
+        loadHtmlPath(multiSelectionList.last());
+    }
+    else
+    {
+        QString filename="models/"+item->text();
+        loadHtmlPath(filename);
+    }
 }
 
 void G3dwhDialog::addButton_Clicked()
 {
     if(ui->downloadList->currentItem())
     {
-        QString filename="models/"+ui->downloadList->currentItem()->text();
-        addToScene(filename);
+        if(multiSelection)
+        {
+            for(int i=0;i<multiSelectionList.length();i++)
+            {
+                QString filename=multiSelectionList.takeAt(i);
+                addToScene(filename);
+            }
+        }
+        else
+        {
+            QString filename="models/"+ui->downloadList->currentItem()->text();
+            addToScene(filename);
+        }
     }
 }
 
 void G3dwhDialog::removeButton_Clicked()
 {
-    QString filename="models/"+ui->downloadList->currentItem()->text();
-    QFile file(filename);
-    file.remove();
-    updateDownloads();
-
-    QFile htmlSources("models/sources");
-    if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
-    return;
-
-    QStringList fileContent;
-
-    while (!htmlSources.atEnd())
+    if(ui->downloadList->currentItem())
     {
-        QByteArray fileInput = htmlSources.readLine();
-        QString line = fileInput;
-        if (!line.contains(filename,Qt::CaseInsensitive))
+        QStringList removeList;
+        if(multiSelection)
         {
-            fileContent.append(line);
+            removeList=multiSelectionList;
         }
-    }
+        else
+            removeList.append("models/"+ui->downloadList->currentItem()->text());
 
-    htmlSources.remove();
+        for(int i=0;i<removeList.length();i++)
+        {
+            QString filename=removeList[i];
+            QFile file(filename);
+            file.remove();
+            updateDownloads();
 
-    if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
-    return;
+            QFile htmlSources("models/sources");
+            if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
+                return;
 
-    QTextStream out(&htmlSources);
-    for(int i=0; i<fileContent.length(); i++)
-    {
-        out << fileContent[i];
+            QStringList fileContent;
+
+            while (!htmlSources.atEnd())
+            {
+                QByteArray fileInput = htmlSources.readLine();
+                QString line = fileInput;
+                if (!line.contains(filename,Qt::CaseInsensitive))
+                {
+                    fileContent.append(line);
+                }
+            }
+
+            htmlSources.remove();
+
+            if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
+                return;
+
+            QTextStream out(&htmlSources);
+            for(int i=0; i<fileContent.length(); i++)
+            {
+                out << fileContent[i];
+            }
+        }
     }
 
 }
@@ -213,9 +260,9 @@ void G3dwhDialog::menuButton_Clicked()
 void G3dwhDialog::settingsMenuAction()
 {
     if (nyan->isChecked())
-    qDebug()<<"nyan";
+        qDebug()<<"nyan";
     else
-    qDebug()<<"oh noes";
+        qDebug()<<"oh noes";
 }
 
 void G3dwhDialog::addToScene(QString pathToFile)
@@ -225,7 +272,7 @@ void G3dwhDialog::addToScene(QString pathToFile)
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
     checkDirStructure(pathToFile, daeRef);
-    
+
     bool clearScene = false;
     SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
@@ -239,7 +286,7 @@ void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
 
     QDir imagesDir(targetDirName+"/images");
     QDir modelsDir(targetDirName+"/models");
-    if(imagesDir.exists()&&modelsDir.exists())
+    if(imagesDir.exists() && modelsDir.exists())
         return;
     else
     {
@@ -314,9 +361,7 @@ void G3dwhDialog::downloadFinished()
             indexStr.setNum(index);
             QStringList newFileName=fileTest.fileName().split(".");
             QString modelName = newFileName[0];
-            qDebug()<<modelName;
             modelName.replace(QRegExp("_[0-9]{1,9}$"),"");
-            qDebug()<<modelName;
 
             fileTest.setFileName(modelName+"_"+indexStr+"."+newFileName[1]);
             fileName=fileTest.fileName();
@@ -325,11 +370,12 @@ void G3dwhDialog::downloadFinished()
 
         QFile file(fileName);
         if (file.open(QFile::ReadWrite))
-        file.write(reply->readAll());
+            file.write(reply->readAll());
         file.close();
     }
 
     downloadAborted=false;
+    saveHtmlPath();
     updateDownloads();
 
 }
@@ -340,7 +386,7 @@ void G3dwhDialog::urlChanged(QUrl url)
 
     if(!newUrl.contains("sketchup.google.com/3dwarehouse"))
     {
-  //      ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+        //      ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     }
 }
 
@@ -348,17 +394,17 @@ void G3dwhDialog::saveHtmlPath()
 {
     QFile htmlSources(QDir().currentPath()+"/models/sources");
     if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
-    return;
+        return;
 
     QTextStream out(&htmlSources);
-    out << ui->warehouseView->url().toString()+"|"+fileName+"\n";
+    out << htmlSource+"|"+fileName+"\n";
 }
 
 void G3dwhDialog::loadHtmlPath(QString file)
 {
     QFile htmlSources(QDir().currentPath()+"/models/sources");
     if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
-    return;
+        return;
 
     while (!htmlSources.atEnd())
     {
@@ -375,7 +421,7 @@ void G3dwhDialog::loadHtmlPath(QString file)
 
 void G3dwhDialog::loadFinished()
 {
-   infoLabel->setText("");
+    infoLabel->setText("");
 }
 
 void G3dwhDialog::linkHovered(QString url, QString title, QString content)
@@ -399,8 +445,8 @@ void G3dwhDialog::readMetaData()
         QStringList parseList = titleList[0].split(" ");
         fileName="models/"+parseList.join("_")+".zip";
         fileName.replace(",","");
+        htmlSource = ui->warehouseView->url().toString();
 
-        saveHtmlPath();
     }
 }
 
@@ -460,8 +506,8 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
     QuaZip zip(inFile.fileName());
 
     if(!zip.open(QuaZip::mdUnzip)) {
-      qWarning("testRead(): zip.open(): %d", zip.getZipError());
-      return false;
+        qWarning("testRead(): zip.open(): %d", zip.getZipError());
+        return false;
     }
 
     QuaZipFile zFile(&zip);
@@ -469,71 +515,71 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
     char c;
     for(bool more=zip.goToFirstFile(); more; more=zip.goToNextFile())
     {
-      if(!zFile.open(QIODevice::ReadOnly)) {
-        qWarning("testRead(): file.open(): %d", zFile.getZipError());
-        return false;
-      }
-      name=zFile.getActualFileName();
-      if(zFile.getZipError()!=UNZ_OK) {
-        qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
-        return false;
-      }
+        if(!zFile.open(QIODevice::ReadOnly)) {
+            qWarning("testRead(): file.open(): %d", zFile.getZipError());
+            return false;
+        }
+        name=zFile.getActualFileName();
+        if(zFile.getZipError()!=UNZ_OK) {
+            qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
+            return false;
+        }
 
-      if (name.endsWith(".dae"))
-      {
-          name.replace(" ","");
-          daeRef = targetName + name;
-      }
-      QString dirn = sceneDir + targetName + name;
+        if (name.endsWith(".dae"))
+        {
+            name.replace(" ","");
+            daeRef = targetName + name;
+        }
+        QString dirn = sceneDir + targetName + name;
 
-      if (name.contains('/')) { // subdirectory support
-        // there must be a more elegant way of doing this
-        // but I couldn't find anything useful in QDir
-        dirn.chop(dirn.length() - dirn.lastIndexOf("/"));
-        QDir().mkpath(dirn);
-      }
-      outFile.setFileName( sceneDir + targetName + name);
+        if (name.contains('/')) { // subdirectory support
+            // there must be a more elegant way of doing this
+            // but I couldn't find anything useful in QDir
+            dirn.chop(dirn.length() - dirn.lastIndexOf("/"));
+            QDir().mkpath(dirn);
+        }
+        outFile.setFileName( sceneDir + targetName + name);
 
 
-      outFile.open(QIODevice::WriteOnly);
-      char buf[4096];
-      int len = 0;
-      while (zFile.getChar(&c))
-      {
-          // we could just do this, but it's about 40% slower:
-          // out.putChar(c);
-          buf[len++] = c;
-          if (len >= 4096)
-          {
-            outFile.write(buf, len);
-            len = 0;
-          }
-      }
-      if (len > 0)
+        outFile.open(QIODevice::WriteOnly);
+        char buf[4096];
+        int len = 0;
+        while (zFile.getChar(&c))
+        {
+            // we could just do this, but it's about 40% slower:
+            // out.putChar(c);
+            buf[len++] = c;
+            if (len >= 4096)
+            {
+                outFile.write(buf, len);
+                len = 0;
+            }
+        }
+        if (len > 0)
         {
             outFile.write(buf, len);
         }
-      outFile.close();
+        outFile.close();
 
 
-      if(zFile.getZipError()!=UNZ_OK) {
-        qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
-        return false;
-      }
-      if(!zFile.atEnd()) {
-        qWarning("testRead(): read all but not EOF");
-        return false;
-      }
-      zFile.close();
-      if(zFile.getZipError()!=UNZ_OK) {
-        qWarning("testRead(): file.close(): %d", zFile.getZipError());
-        return false;
-      }
+        if(zFile.getZipError()!=UNZ_OK) {
+            qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
+            return false;
+        }
+        if(!zFile.atEnd()) {
+            qWarning("testRead(): read all but not EOF");
+            return false;
+        }
+        zFile.close();
+        if(zFile.getZipError()!=UNZ_OK) {
+            qWarning("testRead(): file.close(): %d", zFile.getZipError());
+            return false;
+        }
     }
     zip.close();
     if(zip.getZipError()!=UNZ_OK) {
-      qWarning("testRead(): zip.close(): %d", zip.getZipError());
-      return false;
+        qWarning("testRead(): zip.close(): %d", zip.getZipError());
+        return false;
     }
 
     return true;

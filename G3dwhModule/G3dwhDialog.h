@@ -8,6 +8,7 @@
 #include <QListWidgetItem>
 #include <QPushButton>
 #include <QMenu>
+#include <QStringList>
 
 #include "SceneFwd.h"
 #include "AssetReference.h"
@@ -30,6 +31,8 @@ public:
 protected:
     void changeEvent(QEvent *e);
     bool eventFilter(QObject *o, QEvent *e);
+    void keyPressEvent(QKeyEvent *e);
+    void keyReleaseEvent(QKeyEvent *e);
     QMenu *settingsMenu;
 
 private:
@@ -45,7 +48,12 @@ private:
 
     QString fileName;
     QString sceneDir;
+    QString htmlSource;
+
     bool downloadAborted;
+    bool multiSelection;
+
+    QStringList multiSelectionList;
 
     QAction *nyan;
     QAction *moar;
