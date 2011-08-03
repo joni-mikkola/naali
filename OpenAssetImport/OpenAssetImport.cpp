@@ -67,18 +67,16 @@ void FixHttpReference(QString &matRef, QString addRef)
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef.insert(addRef.length(), "/images/");
-     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
+    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     size_t indx = matRef.indexOf("texture ", 0);
     matRef.replace(indx+8, 0, addRef);
 }
 
-#define pi 3.14159265
-
 double degreeToRadian(double degree)
 {
-        double radian = 0;
-        radian = degree * (pi/180);
-        return radian;
+    double radian = 0;
+    radian = degree * (Ogre::Math::PI/180);
+    return radian;
 }
 
 void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
@@ -193,8 +191,10 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     }
 
     grabNodeNamesFromNode(scene, scene->mRootNode);
-    grabBoneNamesFromNode(scene, scene->mRootNode);
 
+#ifdef USE_SKELETONS
+    grabBoneNamesFromNode(scene, scene->mRootNode);
+#endif
 
     const struct aiNode *rootNode = scene->mRootNode;
 
@@ -203,6 +203,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
     computeNodesDerivedTransform(scene, scene->mRootNode, transform);
 
+#ifdef USE_SKELETONS
     if(mBonesByName.size())
     {
         mSkeleton = Ogre::SkeletonManager::getSingleton().create("conversion", Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
@@ -220,11 +221,13 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             }
         }
     }
+#endif
 
     loadDataFromNode(scene, scene->mRootNode, mPath);
     Ogre::LogManager::getSingleton().logMessage("*** Finished loading ass file ***");
     Assimp::DefaultLogger::kill();
     
+#ifdef USE_SKELETONS
     if(!mSkeleton.isNull())
     {
         unsigned short numBones = mSkeleton->getNumBones();
@@ -274,20 +277,15 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                     sm->vertexData->reorganiseBuffers(newDcl, bufferUsages);
                 }
             }
-
-
-
-
         }
     }
+#endif
 
     QString fileLocation = addr;
 
     if(generateMaterials)
     {
         Ogre::MaterialSerializer ms;
-        
-
 
         std::vector<Ogre::String> exportedNames;
         int tick = 0;
@@ -336,9 +334,9 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
     }
 
+    //Scale mesh scale (xyz) below 10 units
     linearScaleMesh(mMesh, 10);
 
-    //
     mMeshes.clear();
     mMaterialCode = "";
     mBonesByName.clear();
@@ -354,10 +352,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
     return true;
 }
-
-
-
-
 
 typedef boost::tuple< aiVectorKey*, aiQuatKey*, aiVectorKey* > KeyframeData;
 typedef std::map< float, KeyframeData > KeyframesMap;
@@ -408,7 +402,6 @@ aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, Keyframe
     {
         KeyframesMap::reverse_iterator front;
         KeyframesMap::iterator back;
-
 
         GetInterpolationIterators< Int2Type<0> > (keyframes, it, front, back);
 
@@ -572,10 +565,6 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
         aiNodeAnim* node_anim = anim->mChannels[i];
         Ogre::LogManager::getSingleton().logMessage("Channel " + Ogre::StringConverter::toString(i));
         Ogre::LogManager::getSingleton().logMessage("affecting node: " + Ogre::String(node_anim->mNodeName.data));
-        //Ogre::LogManager::getSingleton().logMessage("position keys: " + Ogre::StringConverter::toString(node_anim->mNumPositionKeys));
-        //Ogre::LogManager::getSingleton().logMessage("rotation keys: " + Ogre::StringConverter::toString(node_anim->mNumRotationKeys));
-        //Ogre::LogManager::getSingleton().logMessage("scaling keys: " + Ogre::StringConverter::toString(node_anim->mNumScalingKeys));
-
         Ogre::String boneName = Ogre::String(node_anim->mNodeName.data);
 
         if(mSkeleton->hasBone(boneName))
@@ -666,9 +655,9 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
 bool OpenAssetImport::IsSupportedExtension(QString extension)
 {
     const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
-        ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
-        ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
-        ".ply", ".cob", ".scn" };
+                                          ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
+                                          ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
+                                          ".ply", ".cob", ".scn" };
 
     int numSuffixes = NUMELEMS(openAssImpFileTypes);
 
@@ -958,8 +947,6 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     if (two_sided != 0)
         ogreMaterial->setCullingMode(Ogre::CULL_NONE);
 
-    ogreMaterial->setReceiveShadows(true);
-
     if (mat->GetTexture(type, 0, &path) == AI_SUCCESS)
     {
         //hack for showing back and front faces when loading material containing texture
@@ -986,125 +973,159 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
     Ogre::MaterialPtr matptr;
 
     if(generateMaterials)
-    {
         matptr = createMaterial(mesh->mMaterialIndex, mat, mDir);
-    }
 
     // now begin the object definition
     // We create a submesh per material
     Ogre::SubMesh* submesh = mMesh->createSubMesh(name + Ogre::StringConverter::toString(index));
 
-    // prime pointers to vertex related data
-    aiVector3D *vec = mesh->mVertices;
-    aiVector3D *norm = mesh->mNormals;
-    aiVector3D *uv = mesh->mTextureCoords[0];
-    //aiColor4D *col = mesh->mColors[0];
-
     // We must create the vertex data, indicating how many vertices there will be
     submesh->useSharedVertices = false;
+#include "DisableMemoryLeakCheck.h"
     submesh->vertexData = new Ogre::VertexData();
+#include "EnableMemoryLeakCheck.h"
     submesh->vertexData->vertexStart = 0;
     submesh->vertexData->vertexCount = mesh->mNumVertices;
+    Ogre::VertexData *data = submesh->vertexData;
 
-    // We must now declare what the vertex data contains
-    Ogre::VertexDeclaration* declaration = submesh->vertexData->vertexDeclaration;
-    const unsigned short source = 0;
+    aiVector3D *uv = mesh->mTextureCoords[0];
+    aiVector3D *norm = mesh->mNormals;
+
+    // Vertex declarations
     size_t offset = 0;
-    offset += declaration->addElement(source,offset,Ogre::VET_FLOAT3,Ogre::VES_POSITION).getSize();
+    Ogre::VertexDeclaration* decl = submesh->vertexData->vertexDeclaration;
+    offset += decl->addElement(0,offset,Ogre::VET_FLOAT3,Ogre::VES_POSITION).getSize();
+    offset += decl->addElement(0,offset,Ogre::VET_FLOAT3,Ogre::VES_NORMAL).getSize();
 
-    //mLog->logMessage((boost::format(" %d vertices ") % m->mNumVertices).str());
-    Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(mesh->mNumVertices) + " vertices");
-    if (norm)
+    offset = 0;
+    for (int tn=0 ; tn<AI_MAX_NUMBER_OF_TEXTURECOORDS ; ++tn)
     {
-        Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(mesh->mNumVertices) + " normals");
-        //mLog->logMessage((boost::format(" %d normals ") % m->mNumVertices).str() );
-        offset += declaration->addElement(source,offset,Ogre::VET_FLOAT3,Ogre::VES_NORMAL).getSize();
+        if (mesh->mTextureCoords[tn])
+        {
+            if (mesh->mNumUVComponents[tn] == 3)
+            {
+                decl->addElement(1, offset, Ogre::VET_FLOAT3, Ogre::VES_TEXTURE_COORDINATES, tn);
+                offset += Ogre::VertexElement::getTypeSize(Ogre::VET_FLOAT3);
+            } else
+            {
+                decl->addElement(1, offset, Ogre::VET_FLOAT2, Ogre::VES_TEXTURE_COORDINATES, tn);
+                offset += Ogre::VertexElement::getTypeSize(Ogre::VET_FLOAT2);
+            }
+        }
+    }
+    if (mesh->HasTangentsAndBitangents())
+    {
+        decl->addElement(1, offset, Ogre::VET_FLOAT3, Ogre::VES_TANGENT);
+        offset += Ogre::VertexElement::getTypeSize(Ogre::VET_FLOAT3);
+        decl->addElement(1, offset, Ogre::VET_FLOAT3, Ogre::VES_BINORMAL);
     }
 
-    if (uv)
-    {
-        Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(mesh->mNumVertices) + " uvs");
-        //mLog->logMessage((boost::format(" %d uvs ") % m->mNumVertices).str() );
-        offset += declaration->addElement(source,offset,Ogre::VET_FLOAT2,Ogre::VES_TEXTURE_COORDINATES).getSize();
-    }
-
-    // We create the hardware vertex buffer
-    Ogre::HardwareVertexBufferSharedPtr vbuffer =
-            Ogre::HardwareBufferManager::getSingleton().createVertexBuffer(declaration->getVertexSize(source), // == offset
-                                                                           submesh->vertexData->vertexCount,   // == nbVertices
-                                                                           Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY);
+    // Write vertex data to buffer
+    Ogre::HardwareVertexBufferSharedPtr vbuf = Ogre::HardwareBufferManager::getSingleton().createVertexBuffer(
+            decl->getVertexSize(0), // This value is the size of a vertex in memory
+            data->vertexCount, // The number of vertices you'll put into this buffer
+            Ogre::HardwareBuffer::HBU_DYNAMIC // Properties
+            );
+    Ogre::Real *vbData = static_cast<Ogre::Real*>(vbuf->lock(Ogre::HardwareBuffer::HBL_NORMAL));
 
     aiMatrix4x4 aiM = mNodeDerivedTransformByName.find(pNode->mName.data)->second;
 
-
-    // Now we get access to the buffer to fill it.  During so we record the bounding box.
-    float* vdata = static_cast<float*>(vbuffer->lock(Ogre::HardwareBuffer::HBL_DISCARD));
-    for (size_t i=0;i < mesh->mNumVertices; ++i)
+    offset = 0;
+    aiVector3D vect;
+    for (unsigned int n=0 ; n<data->vertexCount ; ++n)
     {
-        // Position
-        aiVector3D vect;
-        vect.x = vec->x;
-        vect.y = vec->y;
-        vect.z = vec->z;
 
+        vect.x = mesh->mVertices[n].x;
+        vect.y = mesh->mVertices[n].y;
+        vect.z = mesh->mVertices[n].z;
         vect *= aiM;
 
         Ogre::Vector3 position( vect.x, vect.y, vect.z );
-        *vdata++ = vect.x;
-        *vdata++ = vect.y;
-        *vdata++ = vect.z;
+        vbData[offset++] = vect.x;
+        vbData[offset++] = vect.y;
+        vbData[offset++] = vect.z;
+
         mAAB.merge(position);
-        vec++;
 
-        // Normal
-        if (norm)
-        {
-            vect.x = norm->x;
-            vect.y = norm->y;
-            vect.z = norm->z;
+        vect.x = mesh->mNormals[n].x;
+        vect.y = mesh->mNormals[n].y;
+        vect.z = mesh->mNormals[n].z;
+        vect *= aiM;
 
-            vect *= aiM;
-
-            *vdata++ = vect.x;
-            *vdata++ = vect.y;
-            *vdata++ = vect.z;
-            norm++;
-        }
-
-        // uvs
-        if (uv)
-        {
-            *vdata++ = uv->x;
-            *vdata++ = uv->y;
-            uv++;
-        }
+        vbData[offset++] = vect.x;
+        vbData[offset++] = vect.y;
+        vbData[offset++] = vect.z;
     }
 
-    vbuffer->unlock();
-    submesh->vertexData->vertexBufferBinding->setBinding(source,vbuffer);
+    vbuf->unlock();
+    data->vertexBufferBinding->setBinding(0, vbuf);
 
-    Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(mesh->mNumFaces) + " faces");
-    aiFace *f = mesh->mFaces;
-
-    // Creates the index data
-    submesh->indexData->indexStart = 0;
-    submesh->indexData->indexCount = mesh->mNumFaces * 3;
-    submesh->indexData->indexBuffer =
-            Ogre::HardwareBufferManager::getSingleton().createIndexBuffer(Ogre::HardwareIndexBuffer::IT_16BIT,
-                                                                          submesh->indexData->indexCount,
-                                                                          Ogre::HardwareBuffer::HBU_STATIC_WRITE_ONLY);
-    Ogre::uint16* idata = static_cast<Ogre::uint16*>(submesh->indexData->indexBuffer->lock(Ogre::HardwareBuffer::HBL_DISCARD));
-
-    // poke in the face data
-    for (size_t i=0; i < mesh->mNumFaces;++i)
+    if (mesh->HasTextureCoords(0))
     {
-        //		wxASSERT(f->mNumIndices == 3);
-        *idata++ = f->mIndices[0];
-        *idata++ = f->mIndices[1];
-        *idata++ = f->mIndices[2];
-        f++;
+        vbuf = Ogre::HardwareBufferManager::getSingleton().createVertexBuffer(
+                decl->getVertexSize(1), // This value is the size of a vertex in memory
+                data->vertexCount, // The number of vertices you'll put into this buffer
+                Ogre::HardwareBuffer::HBU_DYNAMIC // Properties
+                );
+        vbData = static_cast<Ogre::Real*>(vbuf->lock(Ogre::HardwareBuffer::HBL_NORMAL));
+
+        offset = 0;
+        for (unsigned int n=0 ; n<data->vertexCount ; ++n)
+        {
+            for (int tn=0 ; tn<AI_MAX_NUMBER_OF_TEXTURECOORDS ; ++tn)
+            {
+                if (mesh->mTextureCoords[tn])
+                {
+                    if (mesh->mNumUVComponents[tn] == 3)
+                    {
+                        vbData[offset++] = mesh->mTextureCoords[tn][n].x;
+                        vbData[offset++] = mesh->mTextureCoords[tn][n].y;
+                        vbData[offset++] = mesh->mTextureCoords[tn][n].z;
+                    } else
+                    {
+                        vbData[offset++] = mesh->mTextureCoords[tn][n].x;
+                        vbData[offset++] = mesh->mTextureCoords[tn][n].y;
+                    }
+                }
+            }
+
+            if (mesh->HasTangentsAndBitangents())
+            {
+                vbData[offset++] = mesh->mTangents[n].x;
+                vbData[offset++] = mesh->mTangents[n].y;
+                vbData[offset++] = mesh->mTangents[n].z;
+
+                vbData[offset++] = mesh->mBitangents[n].x;
+                vbData[offset++] = mesh->mBitangents[n].y;
+                vbData[offset++] = mesh->mBitangents[n].z;
+            }
+        }
+        vbuf->unlock();
+        data->vertexBufferBinding->setBinding(1, vbuf);
     }
-    submesh->indexData->indexBuffer->unlock();
+
+    size_t numIndices = mesh->mNumFaces * 3;            // support only triangles, so 3 indices per face
+
+    Ogre::HardwareIndexBufferSharedPtr ibuf = Ogre::HardwareBufferManager::getSingleton().createIndexBuffer(
+            Ogre::HardwareIndexBuffer::IT_16BIT, // You can use several different value types here
+            numIndices, // The number of indices you'll put in that buffer
+            Ogre::HardwareBuffer::HBU_DYNAMIC // Properties
+            );
+
+    Ogre::uint16 *idxData = static_cast<Ogre::uint16*>(ibuf->lock(Ogre::HardwareBuffer::HBL_NORMAL));
+    offset = 0;
+    for (int n=0 ; n<mesh->mNumFaces ; ++n)
+    {
+        idxData[offset++] = mesh->mFaces[n].mIndices[0];
+        idxData[offset++] = mesh->mFaces[n].mIndices[1];
+        idxData[offset++] = mesh->mFaces[n].mIndices[2];
+    }
+
+    ibuf->unlock();
+
+    submesh->indexData->indexBuffer = ibuf; // The pointer to the index buffer
+    submesh->indexData->indexCount = numIndices; // The number of indices we'll use
+    submesh->indexData->indexStart = 0;
 
     // set bone weigths
     if(mesh->HasBones())

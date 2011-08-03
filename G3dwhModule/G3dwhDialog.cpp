@@ -203,53 +203,50 @@ void G3dwhDialog::addButton_Clicked()
 
 void G3dwhDialog::removeButton_Clicked()
 {
-    if(ui->downloadList->currentItem())
+    QStringList removeList;
+    if(multiSelection)
     {
-        QStringList removeList;
-        if(multiSelection)
+        removeList=multiSelectionList;
+    }
+    else
+        removeList.append("models/"+ui->downloadList->currentItem()->text());
+
+    for(int i=0;i<removeList.length();i++)
+    {
+        QString filename=removeList[i];
+        QFile file(filename);
+        file.remove();
+        updateDownloads();
+
+        QFile htmlSources("models/sources");
+        if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
+            return;
+
+        QStringList fileContent;
+
+        while (!htmlSources.atEnd())
         {
-            removeList=multiSelectionList;
+            QByteArray fileInput = htmlSources.readLine();
+            QString line = fileInput;
+            if (!line.contains(filename,Qt::CaseInsensitive))
+            {
+                fileContent.append(line);
+            }
         }
-        else
-            removeList.append("models/"+ui->downloadList->currentItem()->text());
 
-        for(int i=0;i<removeList.length();i++)
+        htmlSources.remove();
+
+        if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
+            return;
+
+        QTextStream out(&htmlSources);
+        for(int i=0; i<fileContent.length(); i++)
         {
-            QString filename=removeList[i];
-            QFile file(filename);
-            file.remove();
-            updateDownloads();
-
-            QFile htmlSources("models/sources");
-            if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
-                return;
-
-            QStringList fileContent;
-
-            while (!htmlSources.atEnd())
-            {
-                QByteArray fileInput = htmlSources.readLine();
-                QString line = fileInput;
-                if (!line.contains(filename,Qt::CaseInsensitive))
-                {
-                    fileContent.append(line);
-                }
-            }
-
-            htmlSources.remove();
-
-            if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
-                return;
-
-            QTextStream out(&htmlSources);
-            for(int i=0; i<fileContent.length(); i++)
-            {
-                out << fileContent[i];
-            }
+            out << fileContent[i];
         }
     }
-
 }
+
 
 void G3dwhDialog::menuButton_Clicked()
 {
@@ -272,7 +269,6 @@ void G3dwhDialog::addToScene(QString pathToFile)
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
     checkDirStructure(pathToFile, daeRef);
-
     bool clearScene = false;
     SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
@@ -493,7 +489,9 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
         while(dirIterator.hasNext())
         {
             dirIterator.next();
-            daeRef=dirIterator.fileName();
+
+            if(dirIterator.fileName().endsWith(".dae"))
+                daeRef=dirIterator.fileName();
         }
         return true;
     }

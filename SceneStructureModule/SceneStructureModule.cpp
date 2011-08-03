@@ -179,19 +179,12 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
             if (IsAssimpSupported(extension))
             {
                 std::string dirname = path.branch_path().string();
-                LogInfo(dirname);
+
                 TundraLogic::SceneImporter sceneimporter(scene);
 
                 Transform worldtransform;
-                LogInfo(filename.toStdString());
-                LogInfo(dirname);
-                QString tmpDir = dirname.c_str();
-                tmpDir.remove(tmpDir.lastIndexOf('/'), tmpDir.length());
-                tmpDir.remove(0, tmpDir.lastIndexOf('/') + 1);
-                std::string fileRef = "local://" + tmpDir.toStdString() + "/models/";
-
                 Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString(), dirname, worldtransform,
-                    std::string(), fileRef.c_str(), AttributeChange::Default, false, "");
+                                 std::string(), "local://", AttributeChange::Default, false, "");
                 if (entity)
                     ret.append(entity.get());
 
