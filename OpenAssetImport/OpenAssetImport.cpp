@@ -56,18 +56,15 @@ void FixLocalReference(QString &matRef, QString addRef)
 void FixHttpReference(QString &matRef, QString addRef)
 {
     addRef.replace(0, 7, "http://");
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     for (uint i = 0; i < addRef.length(); ++i)
         if (addRef[i].toAscii() == '_') addRef[i] = '/';
 
     size_t tmp = addRef.lastIndexOf('/')+1;
     addRef.remove(tmp, addRef.length() - tmp);
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
 
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef.insert(addRef.length(), "/images/");
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     size_t indx = matRef.indexOf("texture ", 0);
     matRef.replace(indx+8, 0, addRef);
 }
@@ -125,7 +122,7 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
+    //Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -286,9 +283,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     if(generateMaterials)
     {
         Ogre::MaterialSerializer ms;
-
-        std::vector<Ogre::String> exportedNames;
-        int tick = 0;
         for(MeshVector::iterator it = mMeshes.begin(); it != mMeshes.end(); ++it)
         {
             mMesh = *it;
@@ -302,34 +296,33 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 Ogre::SubMesh* sm = it.getNext();
 
                 Ogre::String matName(sm->getMaterialName());
-                if (std::find(exportedNames.begin(), exportedNames.end(), matName) == exportedNames.end())
+                Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
+
+                ms.queueForExport(materialPtr, true);
+
+                QString materialInfo = ms.getQueuedAsString().c_str();
+
+                if (materialInfo.contains("texture "))
                 {
-                    Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
+                    if (addr.startsWith("http"))
+                        FixHttpReference(materialInfo, addr);
+                    else
+                        FixLocalReference(materialInfo, addr);
+                }
 
-                    ms.queueForExport(materialPtr, true);
-
-                    QString materialInfo = ms.getQueuedAsString().c_str();
-
-                    if (materialInfo.contains("texture "))
-                    {
-                        if (addr.startsWith("http"))
-                            FixHttpReference(materialInfo, addr);
-                        else
-                            FixLocalReference(materialInfo, addr);
-                    }
-
+                if (fileLocation.startsWith("http"))
+                    matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
+                else
+                {
                     QStringList parsedRef = fileLocation.split("/");
                     int length=parsedRef.length();
                     QString output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
 
-                    if (fileLocation.startsWith("http"))
-                        matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
-                    else
-                        matList[output + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
-
-                    QString tmp = sm->getMaterialName().c_str();
-                    matNameList.push_back(tmp + ".material");
+                    matList[output + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
                 }
+
+                QString tmp = sm->getMaterialName().c_str();
+                matNameList.push_back(tmp + ".material");
             }
         }
     }

@@ -16,25 +16,7 @@
 #include <QtNetwork/QNetworkRequest>
 #include <QDebug>
 
-#include "LoggingFunctions.h"
-
-#include "SceneAPI.h"
-#include "AssetAPI.h"
-#include "IAsset.h"
-
-#include "IAssetTransfer.h"
-#include "SceneManager.h"
-#include "Entity.h"
-#include "InputAPI.h"
-#include "RenderServiceInterface.h"
-#include "../TundraLogicModule/SceneImporter.h"
-#include "UiAPI.h"
-#include "UiGraphicsView.h"
-#include "UiMainWindow.h"
-#include "LoggingFunctions.h"
-#include "Transform.h"
 #include "../SceneStructureModule/SceneStructureModule.h"
-#include "SceneDesc.h"
 
 G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
         QDialog(parent),
