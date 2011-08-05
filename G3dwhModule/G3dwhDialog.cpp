@@ -247,7 +247,6 @@ void G3dwhDialog::settingsMenuAction()
 void G3dwhDialog::addToScene(QString pathToFile)
 {
     QString daeRef;
-    QList<Scene::Entity *> ret;
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
     checkDirStructure(pathToFile, daeRef);
@@ -473,7 +472,7 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
             dirIterator.next();
 
             if(dirIterator.fileName().endsWith(".dae"))
-                daeRef=dirIterator.fileName();
+                daeRef=dirIterator.filePath();
         }
         return true;
     }

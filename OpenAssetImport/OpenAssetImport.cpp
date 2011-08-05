@@ -157,7 +157,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     // ...which should be easy to just change to 32 bit but it didn't seem to be the case
     importer.SetPropertyInteger(AI_CONFIG_PP_SLM_TRIANGLE_LIMIT, 21845);
 
-    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS|aiComponent_COLORS);
+    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
     //importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
     //importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
 
@@ -167,7 +167,9 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     scene = importer.ReadFile(filename, 0 //aiProcessPreset_TargetRealtime_MaxQuality |  aiProcess_PreTransformVertices);/*
                               | aiProcess_SplitLargeMeshes
                               | aiProcess_FindInvalidData
-                              | aiProcess_GenSmoothNormals
+                              | aiProcess_GenNormals
+                              //| aiProcess_GenUVCoords
+                              //| aiProcess_TransformUVCoords
                               | aiProcess_Triangulate
                               | aiProcess_FlipUVs
                               | aiProcess_JoinIdenticalVertices
@@ -981,9 +983,6 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
     submesh->vertexData->vertexCount = mesh->mNumVertices;
     Ogre::VertexData *data = submesh->vertexData;
 
-    aiVector3D *uv = mesh->mTextureCoords[0];
-    aiVector3D *norm = mesh->mNormals;
-
     // Vertex declarations
     size_t offset = 0;
     Ogre::VertexDeclaration* decl = submesh->vertexData->vertexDeclaration;
@@ -1027,27 +1026,32 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
     aiVector3D vect;
     for (unsigned int n=0 ; n<data->vertexCount ; ++n)
     {
+        if (mesh->mVertices != NULL)
+        {
+            vect.x = mesh->mVertices[n].x;
+            vect.y = mesh->mVertices[n].y;
+            vect.z = mesh->mVertices[n].z;
+            vect *= aiM;
 
-        vect.x = mesh->mVertices[n].x;
-        vect.y = mesh->mVertices[n].y;
-        vect.z = mesh->mVertices[n].z;
-        vect *= aiM;
+            Ogre::Vector3 position( vect.x, vect.y, vect.z );
+            vbData[offset++] = vect.x;
+            vbData[offset++] = vect.y;
+            vbData[offset++] = vect.z;
 
-        Ogre::Vector3 position( vect.x, vect.y, vect.z );
-        vbData[offset++] = vect.x;
-        vbData[offset++] = vect.y;
-        vbData[offset++] = vect.z;
+            mAAB.merge(position);
+        }
 
-        mAAB.merge(position);
+        if (mesh->mNormals != NULL)
+        {
+            vect.x = mesh->mNormals[n].x;
+            vect.y = mesh->mNormals[n].y;
+            vect.z = mesh->mNormals[n].z;
+            vect *= aiM;
 
-        vect.x = mesh->mNormals[n].x;
-        vect.y = mesh->mNormals[n].y;
-        vect.z = mesh->mNormals[n].z;
-        vect *= aiM;
-
-        vbData[offset++] = vect.x;
-        vbData[offset++] = vect.y;
-        vbData[offset++] = vect.z;
+            vbData[offset++] = vect.x;
+            vbData[offset++] = vect.y;
+            vbData[offset++] = vect.z;
+        }
     }
 
     vbuf->unlock();
