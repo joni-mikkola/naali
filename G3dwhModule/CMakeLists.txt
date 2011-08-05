@@ -19,7 +19,7 @@ QT4_WRAP_CPP(MOC_SRCS ${MOC_FILES})
 QT4_WRAP_UI(UI_SRCS ${UI_FILES})
 
 use_modules (Core Foundation Interfaces Input SceneStructureModule)
-
+use_package_quazip()
 build_library (${TARGET_NAME} SHARED ${SOURCE_FILES} ${MOC_SRCS} ${UI_SRCS})
 
 link_modules (Core Foundation Interfaces Input SceneStructureModule)
@@ -27,6 +27,7 @@ link_modules (Core Foundation Interfaces Input SceneStructureModule)
 # Use link macros defined in CMakeModules/ConfigurePackages.cmake here
 #link_package_qtmobility()
 #link_ogre()
+link_package_quazip()
 
 SetupCompileFlagsWithPCH()
 CopyModuleXMLFile()
