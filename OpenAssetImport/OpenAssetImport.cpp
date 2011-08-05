@@ -56,18 +56,15 @@ void FixLocalReference(QString &matRef, QString addRef)
 void FixHttpReference(QString &matRef, QString addRef)
 {
     addRef.replace(0, 7, "http://");
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     for (uint i = 0; i < addRef.length(); ++i)
         if (addRef[i].toAscii() == '_') addRef[i] = '/';
 
     size_t tmp = addRef.lastIndexOf('/')+1;
     addRef.remove(tmp, addRef.length() - tmp);
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
 
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
     addRef.insert(addRef.length(), "/images/");
-    Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     size_t indx = matRef.indexOf("texture ", 0);
     matRef.replace(indx+8, 0, addRef);
 }
@@ -125,7 +122,7 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
+    //Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -160,7 +157,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     // ...which should be easy to just change to 32 bit but it didn't seem to be the case
     importer.SetPropertyInteger(AI_CONFIG_PP_SLM_TRIANGLE_LIMIT, 21845);
 
-    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS|aiComponent_COLORS);
+    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
     //importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
     //importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
 
@@ -170,7 +167,9 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     scene = importer.ReadFile(filename, 0 //aiProcessPreset_TargetRealtime_MaxQuality |  aiProcess_PreTransformVertices);/*
                               | aiProcess_SplitLargeMeshes
                               | aiProcess_FindInvalidData
-                              | aiProcess_GenSmoothNormals
+                              | aiProcess_GenNormals
+                              //| aiProcess_GenUVCoords
+                              //| aiProcess_TransformUVCoords
                               | aiProcess_Triangulate
                               | aiProcess_FlipUVs
                               | aiProcess_JoinIdenticalVertices
@@ -286,9 +285,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     if(generateMaterials)
     {
         Ogre::MaterialSerializer ms;
-
-        std::vector<Ogre::String> exportedNames;
-        int tick = 0;
         for(MeshVector::iterator it = mMeshes.begin(); it != mMeshes.end(); ++it)
         {
             mMesh = *it;
@@ -302,34 +298,33 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 Ogre::SubMesh* sm = it.getNext();
 
                 Ogre::String matName(sm->getMaterialName());
-                if (std::find(exportedNames.begin(), exportedNames.end(), matName) == exportedNames.end())
+                Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
+
+                ms.queueForExport(materialPtr, true);
+
+                QString materialInfo = ms.getQueuedAsString().c_str();
+
+                if (materialInfo.contains("texture "))
                 {
-                    Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
+                    if (addr.startsWith("http"))
+                        FixHttpReference(materialInfo, addr);
+                    else
+                        FixLocalReference(materialInfo, addr);
+                }
 
-                    ms.queueForExport(materialPtr, true);
-
-                    QString materialInfo = ms.getQueuedAsString().c_str();
-
-                    if (materialInfo.contains("texture "))
-                    {
-                        if (addr.startsWith("http"))
-                            FixHttpReference(materialInfo, addr);
-                        else
-                            FixLocalReference(materialInfo, addr);
-                    }
-
+                if (fileLocation.startsWith("http"))
+                    matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
+                else
+                {
                     QStringList parsedRef = fileLocation.split("/");
                     int length=parsedRef.length();
                     QString output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
 
-                    if (fileLocation.startsWith("http"))
-                        matList[fileLocation + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
-                    else
-                        matList[output + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
-
-                    QString tmp = sm->getMaterialName().c_str();
-                    matNameList.push_back(tmp + ".material");
+                    matList[output + "#" + sm->getMaterialName().c_str() + ".material"] = materialInfo;
                 }
+
+                QString tmp = sm->getMaterialName().c_str();
+                matNameList.push_back(tmp + ".material");
             }
         }
     }
@@ -988,9 +983,6 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
     submesh->vertexData->vertexCount = mesh->mNumVertices;
     Ogre::VertexData *data = submesh->vertexData;
 
-    aiVector3D *uv = mesh->mTextureCoords[0];
-    aiVector3D *norm = mesh->mNormals;
-
     // Vertex declarations
     size_t offset = 0;
     Ogre::VertexDeclaration* decl = submesh->vertexData->vertexDeclaration;
@@ -1034,27 +1026,32 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
     aiVector3D vect;
     for (unsigned int n=0 ; n<data->vertexCount ; ++n)
     {
+        if (mesh->mVertices != NULL)
+        {
+            vect.x = mesh->mVertices[n].x;
+            vect.y = mesh->mVertices[n].y;
+            vect.z = mesh->mVertices[n].z;
+            vect *= aiM;
 
-        vect.x = mesh->mVertices[n].x;
-        vect.y = mesh->mVertices[n].y;
-        vect.z = mesh->mVertices[n].z;
-        vect *= aiM;
+            Ogre::Vector3 position( vect.x, vect.y, vect.z );
+            vbData[offset++] = vect.x;
+            vbData[offset++] = vect.y;
+            vbData[offset++] = vect.z;
 
-        Ogre::Vector3 position( vect.x, vect.y, vect.z );
-        vbData[offset++] = vect.x;
-        vbData[offset++] = vect.y;
-        vbData[offset++] = vect.z;
+            mAAB.merge(position);
+        }
 
-        mAAB.merge(position);
+        if (mesh->mNormals != NULL)
+        {
+            vect.x = mesh->mNormals[n].x;
+            vect.y = mesh->mNormals[n].y;
+            vect.z = mesh->mNormals[n].z;
+            vect *= aiM;
 
-        vect.x = mesh->mNormals[n].x;
-        vect.y = mesh->mNormals[n].y;
-        vect.z = mesh->mNormals[n].z;
-        vect *= aiM;
-
-        vbData[offset++] = vect.x;
-        vbData[offset++] = vect.y;
-        vbData[offset++] = vect.z;
+            vbData[offset++] = vect.x;
+            vbData[offset++] = vect.y;
+            vbData[offset++] = vect.z;
+        }
     }
 
     vbuf->unlock();

@@ -76,25 +76,35 @@ void G3dwhModule::Update(f64 frametime)
 
 void G3dwhModule::ShowG3dwhWindow()
 {
-    warehouse_ = new G3dwhDialog(framework_, GetFramework()->Ui()->MainWindow());
-    warehouse_->show();
 
-    std::vector<AssetStoragePtr> storages = framework_->Asset()->GetAssetStorages();
-
-    for(size_t i = 0; i < storages.size(); ++i)
+    if(warehouse_.isNull())
     {
-       QString storage = storages[i]->ToString();
-       LogInfo( "Storages:" +storage.toStdString() );
+        warehouse_ = new G3dwhDialog(framework_, GetFramework()->Ui()->MainWindow());
+        warehouse_->show();
 
-       if(storage.contains("Scene"))
-       {
-           QString scenePathEdit = storage.section("(",1,1);
-           QString scenePath = scenePathEdit.replace(")","/",Qt::CaseSensitive);
-           LogInfo( scenePath.toStdString());
-           warehouse_->setScenePath(scenePath);
-           return;
-       }
+        std::vector<AssetStoragePtr> storages = framework_->Asset()->GetAssetStorages();
+
+        for(size_t i = 0; i < storages.size(); ++i)
+        {
+            QString storage = storages[i]->ToString();
+            LogInfo( "Storages:" +storage.toStdString() );
+
+            if(storage.contains("Scene"))
+            {
+                QString scenePathEdit = storage.section("(",1,1);
+                QString scenePath = scenePathEdit.replace(")","/",Qt::CaseSensitive);
+                LogInfo( scenePath.toStdString());
+                warehouse_->setScenePath(scenePath);
+                return;
+            }
+        }
     }
+    else
+    {
+        warehouse_->close();
+        warehouse_=NULL;
+    }
+
 }
 
 
@@ -105,6 +115,6 @@ void SetProfiler(Foundation::Profiler *profiler)
 }
 
 POCO_BEGIN_MANIFEST(IModule)
-   POCO_EXPORT_CLASS(G3dwhModule)
+POCO_EXPORT_CLASS(G3dwhModule)
 POCO_END_MANIFEST
 

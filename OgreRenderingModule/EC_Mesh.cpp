@@ -1027,8 +1027,13 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 
         QStringList parsedRef = fileLocation.split("/");
         int length=parsedRef.length();
-        QString output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
 
+        QString output = asset->DiskSource().remove(0, asset->DiskSource().lastIndexOf('/')+1);
+
+        if (!output.startsWith("http"))
+            output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
+
+        LogInfo(asset->DiskSource().toStdString());
         // Loop through material list and insert each material separated with '#' from filename
         std::vector<QString> materialVector = framework_->Asset()->materialIndexMap[asset->DiskSource()];
         for (int i = 0; i < materialVector.size(); i++)

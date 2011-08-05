@@ -16,8 +16,6 @@
 #include <QtNetwork/QNetworkRequest>
 #include <QDebug>
 
-#include "LoggingFunctions.h"
-
 #include "../SceneStructureModule/SceneStructureModule.h"
 
 
@@ -253,7 +251,6 @@ void G3dwhDialog::settingsMenuAction()
 void G3dwhDialog::addToScene(QString pathToFile)
 {
     QString daeRef;
-    QList<Scene::Entity *> ret;
     // get dae file reference to daeref
     unpackDownload(pathToFile, daeRef);
     checkDirStructure(pathToFile, daeRef);
