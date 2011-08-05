@@ -68,15 +68,15 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     connect(menuButton, SIGNAL(clicked()), this, SLOT(menuButton_Clicked()));
 
     settingsMenu = new QMenu();
-    nyan =  settingsMenu->addAction("NYAN");
-    nyan->setCheckable(true);
-    nyan->setChecked(false);
+    testSettingA =  settingsMenu->addAction("TEST SETTING 1");
+    testSettingA->setCheckable(true);
+    testSettingA->setChecked(false);
     settingsMenu->addSeparator();
-    moar =  settingsMenu->addAction("MOAR NYAN");
+    testSettingB =  settingsMenu->addAction("TEST SETTING 2");
     settingsMenu->addSeparator();
-    rawr =  settingsMenu->addAction("RAWR");
+    testSettingC =  settingsMenu->addAction("TEST SETTING 3");
 
-    connect(nyan, SIGNAL(triggered()), this, SLOT(settingsMenuAction()));
+    connect(testSettingA, SIGNAL(triggered()), this, SLOT(settingsMenuAction()));
 
     toolBar->addAction(ui->warehouseView->pageAction(QWebPage::Back));
     toolBar->addAction(ui->warehouseView->pageAction(QWebPage::Forward));
@@ -242,7 +242,7 @@ void G3dwhDialog::menuButton_Clicked()
 
 void G3dwhDialog::settingsMenuAction()
 {
-    if (nyan->isChecked())
+    if (testSettingA->isChecked())
         qDebug()<<"nyan";
     else
         qDebug()<<"oh noes";
