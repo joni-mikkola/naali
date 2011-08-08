@@ -53,9 +53,11 @@ public:
 public:
     
     /// Since map sorts data according to key value, we need vector for holding real material index order
+    /// Example: "house.dae" is key to a vector which contains house.dae#material0.jpg.material, house.dae#texture0.jpg.material etc
+    /// in correct order. Map "sorts" all mapped value according to starting character
     std::map<QString, std::vector<QString> > materialIndexMap;
 
-    /// Store all material information here
+    /// Store all material information here. Example: house.dae#material0.jpg.material contains all material data
     std::map<QString, QString> materialMap;
 
     /// Registers a type factory for creating assets of the type governed by the factory.

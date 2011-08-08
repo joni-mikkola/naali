@@ -16,7 +16,10 @@
 #include <QtNetwork/QNetworkRequest>
 #include <QDebug>
 
-#include "../SceneStructureModule/SceneStructureModule.h"
+#include "SceneStructureModule.h"
+#include "LoggingFunctions.h"
+
+DEFINE_POCO_LOGGING_FUNCTIONS("G3dwh");
 
 G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     QDialog(parent),
@@ -95,6 +98,8 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     connect(ui->warehouseView->page(), SIGNAL(downloadRequested(const QNetworkRequest&)), this, SLOT(downloadRequested(const QNetworkRequest&)));
     connect(ui->warehouseView, SIGNAL(urlChanged(QUrl)), this, SLOT(urlChanged(QUrl)));
     connect(ui->warehouseView->page(), SIGNAL(linkHovered(QString,QString,QString)), SLOT(linkHovered(QString,QString,QString)));
+
+
 }
 
 G3dwhDialog::~G3dwhDialog()
@@ -107,6 +112,12 @@ void G3dwhDialog::keyPressEvent(QKeyEvent *e)
     ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
     multiSelection=true;
 }
+
+void G3dwhDialog::disableButtons(bool disabled)
+{
+    addButton->setDisabled(disabled);
+}
+
 
 void G3dwhDialog::keyReleaseEvent(QKeyEvent *e)
 {
@@ -185,11 +196,15 @@ void G3dwhDialog::addButton_Clicked()
 
 void G3dwhDialog::removeButton_Clicked()
 {
+    if (ui->downloadList->currentItem() == NULL)
+    {
+        LogInfo("No item selected");
+        return;
+    }
+
     QStringList removeList;
     if(multiSelection)
-    {
         removeList=multiSelectionList;
-    }
     else
         removeList.append("models/"+ui->downloadList->currentItem()->text());
 

@@ -29,6 +29,7 @@
 
 #include "LoggingFunctions.h"
 
+DEFINE_POCO_LOGGING_FUNCTIONS("G3dwh");
 
 std::string G3dwhModule::type_name_static_ = "G3dwh";
 
@@ -84,17 +85,19 @@ void G3dwhModule::ShowG3dwhWindow()
     for(size_t i = 0; i < storages.size(); ++i)
     {
        QString storage = storages[i]->ToString();
-       LogInfo( "Storages:" +storage.toStdString() );
+       //LogInfo( "Storages:" +storage.toStdString() );
 
-       if(storage.contains("Scene"))
+       if(storage.contains("Scene "))
        {
            QString scenePathEdit = storage.section("(",1,1);
            QString scenePath = scenePathEdit.replace(")","/",Qt::CaseSensitive);
-           LogInfo( scenePath.toStdString());
            warehouse_->setScenePath(scenePath);
+           warehouse_->disableButtons(false);
            return;
        }
     }
+    LogInfo("No default storage added, models can't be added\nAdd new storage to start creating scene");
+    warehouse_->disableButtons(true);
 }
 
 

@@ -230,6 +230,7 @@ void EC_Avatar::SetupMeshAndMaterials()
     }
     QString meshName = LookupAsset(desc->mesh_);
 
+    // Get path for file
     AssetPtr ptr = framework_->Asset()->GetAsset(meshName);
     QString fileLoc = ptr.get()->DiskSource();
 

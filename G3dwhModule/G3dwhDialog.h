@@ -27,6 +27,7 @@ public:
     ~G3dwhDialog();
 
     void setScenePath(QString scenePath);
+    void disableButtons(bool disabled);
 
 protected:
     void changeEvent(QEvent *e);
