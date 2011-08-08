@@ -1006,6 +1006,31 @@ void EC_Mesh::OnComponentRemoved(IComponent* component, AttributeChange::Type ch
         SetPlaceable(ComponentPtr());
 }
 
+void EC_Mesh::LoadColladaMaterials(QString fileRef)
+{
+    // Create reference list for materials which to add to the scene
+    AssetReferenceList refList;
+
+    QString fileLocation = fileRef;
+    LogInfo(fileLocation);
+    //QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+
+    QStringList parsedRef = fileLocation.split("/");
+    int length=parsedRef.length();
+
+    QString output = fileRef.remove(0, fileLocation.lastIndexOf('/')+1);
+    LogInfo(output);
+    if (!output.startsWith("http"))
+        output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
+
+    // Loop through material list and insert each material separated with '#' from filename
+    std::vector<QString> materialVector = framework_->Asset()->materialIndexMap[fileLocation];
+    for (int i = 0; i < materialVector.size(); i++)
+        refList.Append(AssetReference(output + "#" + materialVector[i]));
+
+    meshMaterial.Set(refList, AttributeChange::Default);
+}
+
 void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 {
     OgreMeshAsset *mesh = dynamic_cast<OgreMeshAsset*>(asset.get());
@@ -1018,29 +1043,7 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 
 #ifdef ASSIMP_ENABLED
     if (IsAssimpSupported(asset->DiskSource()))
-    {
-        // Create reference list for materials which to add to the scene
-        AssetReferenceList refList;
-
-        QString fileLocation = asset->DiskSource();
-        //QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
-
-        QStringList parsedRef = fileLocation.split("/");
-        int length=parsedRef.length();
-
-        QString output = asset->DiskSource().remove(0, asset->DiskSource().lastIndexOf('/')+1);
-
-        if (!output.startsWith("http"))
-            output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
-
-        LogInfo(asset->DiskSource().toStdString());
-        // Loop through material list and insert each material separated with '#' from filename
-        std::vector<QString> materialVector = framework_->Asset()->materialIndexMap[asset->DiskSource()];
-        for (int i = 0; i < materialVector.size(); i++)
-            refList.Append(AssetReference(output + "#" + materialVector[i]));
-
-        meshMaterial.Set(refList, AttributeChange::Default);
-    }
+        LoadColladaMaterials(asset->DiskSource());
 #endif
 
 

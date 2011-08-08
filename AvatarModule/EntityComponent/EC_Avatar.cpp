@@ -228,9 +228,11 @@ void EC_Avatar::SetupMeshAndMaterials()
                 vertices_to_hide.insert(attachments[i].vertices_to_hide_[j]);
         }
     }
-    
     QString meshName = LookupAsset(desc->mesh_);
-    
+
+    AssetPtr ptr = framework_->Asset()->GetAsset(meshName);
+    QString fileLoc = ptr.get()->DiskSource();
+
     if (desc->skeleton_.length())
     {
         QString skeletonName = LookupAsset(desc->skeleton_);
@@ -241,9 +243,14 @@ void EC_Avatar::SetupMeshAndMaterials()
     
     if (need_mesh_clone)
         HideVertices(mesh->GetEntity(), vertices_to_hide);
-    
-    for (uint i = 0; i < desc->materials_.size(); ++i)
-        mesh->SetMaterial(i, LookupAsset(desc->materials_[i]));
+
+    if (!fileLoc.endsWith(".dae"))
+    {
+        for (uint i = 0; i < desc->materials_.size(); ++i)
+            mesh->SetMaterial(i, LookupAsset(desc->materials_[i]));
+    }
+    else
+        mesh->LoadColladaMaterials(fileLoc);
     
     // Set adjustment orientation for mesh (Ogre meshes usually have Y-axis as vertical)
     Quaternion adjust(PI/2, 0, -PI/2);
