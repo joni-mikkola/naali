@@ -221,6 +221,11 @@ public slots:
     bool SetMaterial(uint index, const std::string& material_name);
     bool SetMaterial(uint index, const QString& material_name);
 
+    //! loads material info from materialIndexMap to AssetReferenceList
+    /*! \param full directory for Collada file
+    */
+    void LoadColladaMaterials(QString fileRef);
+
     /// (Re)applies the currently set material refs to the currently set mesh ref. Does not start any asset requests, but 
     /// sets the data on the currently loaded assets.
     void ApplyMaterial();

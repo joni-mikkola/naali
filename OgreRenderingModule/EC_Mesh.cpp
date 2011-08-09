@@ -1006,6 +1006,36 @@ void EC_Mesh::OnComponentRemoved(IComponent* component, AttributeChange::Type ch
         SetPlaceable(ComponentPtr());
 }
 
+void EC_Mesh::LoadColladaMaterials(QString fileRef)
+{
+    // Create reference list for materials which add to the scene
+    AssetReferenceList refList;
+
+    QString fileLocation = fileRef;
+
+    // Split file path so, that it eventually forms from two directories + filename
+    // Reason for doing so, is that models with same names are not mixed up
+    // Example: house1_models_house.dae and house2_models_house.dae
+    QStringList parsedRef = fileLocation.split("/");
+    int length=parsedRef.length();
+
+    QString fixedRef = fileRef.remove(0, fileLocation.lastIndexOf('/')+1);
+    if (!fixedRef.startsWith("http"))
+        fixedRef=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
+
+    // Fill materialVector from indexmap with materials mapped for file path key
+    std::vector<QString> materialVector = framework_->Asset()->materialIndexMap[fileLocation];
+
+    // Fill mesh's references with materials found in materialVector
+    // std::vector keeps correct order for inserted materials instead of std::map
+    for (int i = 0; i < materialVector.size(); i++)
+        refList.Append(AssetReference(fixedRef + "#" + materialVector[i]));
+
+    // refList now goes through AssetApi where corresponding material info is loaded
+    // for each added reference
+    meshMaterial.Set(refList, AttributeChange::Default);
+}
+
 void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 {
     OgreMeshAsset *mesh = dynamic_cast<OgreMeshAsset*>(asset.get());
@@ -1015,34 +1045,10 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         return;
     }
 
-
 #ifdef ASSIMP_ENABLED
     if (IsAssimpSupported(asset->DiskSource()))
-    {
-        // Create reference list for materials which to add to the scene
-        AssetReferenceList refList;
-
-        QString fileLocation = asset->DiskSource();
-        //QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
-
-        QStringList parsedRef = fileLocation.split("/");
-        int length=parsedRef.length();
-
-        QString output = asset->DiskSource().remove(0, asset->DiskSource().lastIndexOf('/')+1);
-
-        if (!output.startsWith("http"))
-            output=parsedRef[length-3] + "_" + parsedRef[length-2] + "_" + parsedRef[length-1];
-
-        LogInfo(asset->DiskSource().toStdString());
-        // Loop through material list and insert each material separated with '#' from filename
-        std::vector<QString> materialVector = framework_->Asset()->materialIndexMap[asset->DiskSource()];
-        for (int i = 0; i < materialVector.size(); i++)
-            refList.Append(AssetReference(output + "#" + materialVector[i]));
-
-        meshMaterial.Set(refList, AttributeChange::Default);
-    }
+        LoadColladaMaterials(asset->DiskSource());
 #endif
-
 
     QString ogreMeshName = mesh->Name();
 

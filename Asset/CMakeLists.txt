@@ -12,13 +12,16 @@ file(GLOB MOC_FILES AssetAPI.h IAsset.h IAssetTransfer.h IAssetUploadTransfer.h 
 set(SOURCE_FILES ${CPP_FILES} ${H_FILES})
 
 QT4_WRAP_CPP(MOC_SRCS ${MOC_FILES})
+use_package_assimp()
 
 use_modules(Core Foundation Interfaces Ui)
 
 build_library(${TARGET_NAME} STATIC ${SOURCE_FILES} ${MOC_SRCS})
 
-add_definitions(-DASSET_API_EXPORTS)
 GetOpenAssetImport()
+
+add_definitions(-DASSET_API_EXPORTS)
+
 link_package(BOOST)
 link_package(POCO)
 link_package(QT4)

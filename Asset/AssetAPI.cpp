@@ -24,7 +24,7 @@
 #include <QFileSystemWatcher>
 
 #ifdef ASSIMP_ENABLED
-#include "../OpenAssetImport/OpenAssetImport.h"
+#include "OpenAssetImport.h"
 #endif
 
 DEFINE_POCO_LOGGING_FUNCTIONS("Asset")
@@ -1244,16 +1244,20 @@ bool IsAssimpSupported(const QString &filename)
 bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &materialMap)
 {
     std::map<QString, QString>::iterator it;
+    // Search for corresping material information from materialMap
+    // In all cases this should be successful, because ref parameter should be asking
+    // for material which has already been mapped to materialMap
     it = materialMap.find(ref);
 
     if (it != materialMap.end())
     {
+        // Fill dst vector with material data
         for (int i = 0; i < it->second.length()-1; i++)
             dst.push_back(it->second[i].toAscii());
+
         return true;
     }
 
-    //LogInfo("Failed to find material for " + ref.toStdString());
     return false;
 }
 #endif
