@@ -8,8 +8,8 @@
 #include <QDirIterator>
 #include <QMouseEvent>
 
-#include "quazip.h"
-#include "quazipfile.h"
+#include <quazip.h>
+#include <quazipfile.h>
 
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
@@ -18,14 +18,15 @@
 
 #include "../SceneStructureModule/SceneStructureModule.h"
 
-
-G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
+G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPath, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::G3dwhDialog)
 {
     ui->setupUi(this);
 
     framework_ = framework;
+    modelDir=QString::fromUtf8(modelPath.c_str());
+
     toolBar = new QToolBar(this);
     toolBar->setObjectName(QString::fromUtf8("toolBar"));
 
@@ -45,10 +46,10 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
 
     infoLabel=new QLabel(this);
 
-    QDir downloadDir("models");
+    QDir downloadDir(modelDir+"/models");
     if(!downloadDir.exists())
     {
-        QDir().mkdir("models");
+        QDir().mkdir(modelDir+"/models");
     }
 
 
@@ -96,6 +97,7 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, QWidget *parent) :
     connect(ui->warehouseView->page(), SIGNAL(downloadRequested(const QNetworkRequest&)), this, SLOT(downloadRequested(const QNetworkRequest&)));
     connect(ui->warehouseView, SIGNAL(urlChanged(QUrl)), this, SLOT(urlChanged(QUrl)));
     connect(ui->warehouseView->page(), SIGNAL(linkHovered(QString,QString,QString)), SLOT(linkHovered(QString,QString,QString)));
+
 }
 
 G3dwhDialog::~G3dwhDialog()
@@ -105,16 +107,24 @@ G3dwhDialog::~G3dwhDialog()
 
 void G3dwhDialog::keyPressEvent(QKeyEvent *e)
 {
-    ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
-    multiSelection=true;
+    if(e->key() == Qt::Key_Control)
+    {
+        multiSelectionList.append("models/"+ui->downloadList->currentItem()->text());
+        fileName.clear();
+        ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
+        multiSelection=true;
+    }
 }
 
 void G3dwhDialog::keyReleaseEvent(QKeyEvent *e)
 {
-    multiSelectionList.clear();
-    ui->downloadList->clearSelection();
-    ui->downloadList->setSelectionMode(QAbstractItemView::SingleSelection);
-    multiSelection=false;
+    if(e->key() == Qt::Key_Control)
+    {
+        multiSelectionList.clear();
+        ui->downloadList->clearSelection();
+        ui->downloadList->setSelectionMode(QAbstractItemView::SingleSelection);
+        multiSelection=false;
+    }
 }
 
 void G3dwhDialog::changeEvent(QEvent *e)
@@ -155,24 +165,22 @@ void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
     if(multiSelection)
     {
         multiSelectionList.append("models/"+item->text());
-        loadHtmlPath(multiSelectionList.last());
+        loadHtmlPath(modelDir+"/"+multiSelectionList.last());
     }
     else
     {
-        QString filename="models/"+item->text();
+        QString filename=modelDir+"/models/"+item->text();
         loadHtmlPath(filename);
     }
 }
 
 void G3dwhDialog::addButton_Clicked()
 {
-    if(ui->downloadList->currentItem())
-    {
         if(multiSelection)
         {
             for(int i=0;i<multiSelectionList.length();i++)
             {
-                QString filename=multiSelectionList.takeAt(i);
+                QString filename=multiSelectionList.at(i);
                 addToScene(filename);
             }
         }
@@ -181,7 +189,6 @@ void G3dwhDialog::addButton_Clicked()
             QString filename="models/"+ui->downloadList->currentItem()->text();
             addToScene(filename);
         }
-    }
 }
 
 void G3dwhDialog::removeButton_Clicked()
@@ -194,16 +201,16 @@ void G3dwhDialog::removeButton_Clicked()
             removeList=multiSelectionList;
         }
         else
-            removeList.append("models/"+ui->downloadList->currentItem()->text());
+            removeList.append(modelDir+"/models/"+ui->downloadList->currentItem()->text());
 
         for(int i=0;i<removeList.length();i++)
         {
-            QString filename=removeList[i];
+            QString filename=modelDir+"/"+removeList.at(i);
             QFile file(filename);
             file.remove();
             updateDownloads();
 
-            QFile htmlSources("models/sources");
+            QFile htmlSources(modelDir+"/models/sources");
             if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
                 return;
 
@@ -255,6 +262,7 @@ void G3dwhDialog::addToScene(QString pathToFile)
     unpackDownload(pathToFile, daeRef);
     checkDirStructure(pathToFile, daeRef);
     bool clearScene = false;
+    qDebug()<<multiSelectionList;
     SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
     if (sceneStruct)
@@ -373,7 +381,7 @@ void G3dwhDialog::urlChanged(QUrl url)
 
 void G3dwhDialog::saveHtmlPath()
 {
-    QFile htmlSources(QDir().currentPath()+"/models/sources");
+    QFile htmlSources(modelDir+"/models/sources");
     if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
         return;
 
@@ -383,7 +391,7 @@ void G3dwhDialog::saveHtmlPath()
 
 void G3dwhDialog::loadHtmlPath(QString file)
 {
-    QFile htmlSources(QDir().currentPath()+"/models/sources");
+    QFile htmlSources(modelDir+"/models/sources");
     if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
         return;
 
@@ -424,7 +432,7 @@ void G3dwhDialog::readMetaData()
     {
         QStringList titleList = ui->warehouseView->title().split(" by");
         QStringList parseList = titleList[0].split(" ");
-        fileName="models/"+parseList.join("_")+".zip";
+        fileName=modelDir+"/models/"+parseList.join("_")+".zip";
         fileName.replace(",","");
         htmlSource = ui->warehouseView->url().toString();
 
@@ -435,7 +443,7 @@ void G3dwhDialog::updateDownloads()
 {
     ui->downloadList->clear();
 
-    QDir dir(QDir().currentPath()+"/models");
+    QDir dir(modelDir+"/models");
     QStringList nameFilters;
     nameFilters.append("*.zip");
     dir.setNameFilters(nameFilters);
@@ -457,12 +465,10 @@ void G3dwhDialog::setScenePath(QString scenePath)
 
 int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
 {
-    QFile inFile(file);
+    QFile inFile(modelDir+"/"+file);
     QFile outFile;
 
     QString targetName = file.replace(".zip","/");
-
-    qDebug()<<sceneDir+targetName;
 
     QDir testDir(sceneDir+targetName);
     QStringList filter;
@@ -482,7 +488,6 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
     }
     else
     {
-        qDebug()<<sceneDir+targetName;
         QDir().mkpath(sceneDir+targetName);
     }
 

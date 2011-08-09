@@ -14,7 +14,6 @@
 #include "AssetReference.h"
 #include "IModule.h"
 
-#include <QWebFrame>
 
 namespace Ui {
     class G3dwhDialog;
@@ -23,7 +22,7 @@ namespace Ui {
 class G3dwhDialog : public QDialog {
     Q_OBJECT
 public:
-    G3dwhDialog(Foundation::Framework * framework, QWidget *parent = 0);
+    G3dwhDialog(Foundation::Framework * framework, std::string modelPath, QWidget *parent = 0);
     ~G3dwhDialog();
 
     void setScenePath(QString scenePath);
@@ -49,15 +48,16 @@ private:
     QString fileName;
     QString sceneDir;
     QString htmlSource;
+    QString modelDir;
 
     bool downloadAborted;
     bool multiSelection;
 
     QStringList multiSelectionList;
 
-    QAction *nyan;
-    QAction *moar;
-    QAction *rawr;
+    QAction *testSettingA;
+    QAction *testSettingB;
+    QAction *testSettingC;
 
     void updateDownloads();
     int unpackDownload(QString file, QString & daeRef);
