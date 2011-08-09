@@ -79,7 +79,9 @@ void G3dwhModule::ShowG3dwhWindow()
 
     if(warehouse_.isNull())
     {
-        warehouse_ = new G3dwhDialog(framework_, GetFramework()->Ui()->MainWindow());
+        std::string modelPath=GetFramework()->GetPlatform()->GetApplicationDataDirectory();
+
+        warehouse_ = new G3dwhDialog(framework_, modelPath, GetFramework()->Ui()->MainWindow());
         warehouse_->show();
 
         std::vector<AssetStoragePtr> storages = framework_->Asset()->GetAssetStorages();
@@ -87,9 +89,9 @@ void G3dwhModule::ShowG3dwhWindow()
         for(size_t i = 0; i < storages.size(); ++i)
         {
             QString storage = storages[i]->ToString();
-            LogInfo( "Storages:" +storage.toStdString() );
+            qDebug()<<storage;
 
-            if(storage.contains("Scene"))
+            if(storage.contains("Scene ",Qt::CaseSensitive))
             {
                 QString scenePathEdit = storage.section("(",1,1);
                 QString scenePath = scenePathEdit.replace(")","/",Qt::CaseSensitive);
