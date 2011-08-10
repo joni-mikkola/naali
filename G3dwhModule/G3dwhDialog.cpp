@@ -21,6 +21,14 @@
 
 DEFINE_POCO_LOGGING_FUNCTIONS("G3dwh");
 
+/*When model is successfully downloaded with QtWebKit the system unpacks the .zip
+  file containing the model unless it is already unpacked. The path to the model
+  is saved to daeRef variable. The model is added to scene by using SceneStructureModule,
+  which receives the reference to the model from daeRef variable.
+  The downloade models are saved to applicationDataDirectory.
+
+*/
+
 G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPath, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::G3dwhDialog)
@@ -101,10 +109,6 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPat
     connect(ui->warehouseView, SIGNAL(urlChanged(QUrl)), this, SLOT(urlChanged(QUrl)));
     connect(ui->warehouseView->page(), SIGNAL(linkHovered(QString,QString,QString)), SLOT(linkHovered(QString,QString,QString)));
 
-<<<<<<< HEAD
-=======
-
->>>>>>> ec603c84db638aa3c01f8f4a1ca7979749311937
 }
 
 G3dwhDialog::~G3dwhDialog()
@@ -112,23 +116,27 @@ G3dwhDialog::~G3dwhDialog()
     delete ui;
 }
 
+//Enables multiselection of models when CTRL is pressed
 void G3dwhDialog::keyPressEvent(QKeyEvent *e)
 {
     if(e->key() == Qt::Key_Control)
     {
+        if(ui->downloadList->currentItem()!=NULL)
         multiSelectionList.append("models/"+ui->downloadList->currentItem()->text());
+
         fileName.clear();
         ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
         multiSelection=true;
     }
 }
 
+//Disaples buttons, called from G3dwhModule when no scene storage is available
 void G3dwhDialog::disableButtons(bool disabled)
 {
     addButton->setDisabled(disabled);
 }
 
-
+//Disables multiselection of models when CTRL is released and clears the list of selected models
 void G3dwhDialog::keyReleaseEvent(QKeyEvent *e)
 {
     if(e->key() == Qt::Key_Control)
@@ -152,6 +160,7 @@ void G3dwhDialog::changeEvent(QEvent *e)
     }
 }
 
+
 bool G3dwhDialog::eventFilter(QObject *o, QEvent *e)
 {
     if(e->type() == QEvent::MouseButtonPress)
@@ -173,6 +182,8 @@ bool G3dwhDialog::eventFilter(QObject *o, QEvent *e)
     return false;
 }
 
+//Add selected model to list if multiselection is enabled. If not, display the original
+//download page for the model
 void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
 {
     if(multiSelection)
@@ -187,8 +198,12 @@ void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
     }
 }
 
+//If multiselection is enabled, go trough the list and add the models to scene
+//If not, add the currently selected model
 void G3dwhDialog::addButton_Clicked()
 {
+    if(ui->downloadList->count()>0)
+    {
         if(multiSelection)
         {
             for(int i=0;i<multiSelectionList.length();i++)
@@ -202,8 +217,14 @@ void G3dwhDialog::addButton_Clicked()
             QString filename="models/"+ui->downloadList->currentItem()->text();
             addToScene(filename);
         }
+    }
+    else
+        LogInfo("No models downloaded");
 }
 
+//If multiselection is enabled, delete selected models and remove from model list
+//If not, delete the selected model and remove from model list
+//Remove the data of the deleted model from sources file
 void G3dwhDialog::removeButton_Clicked()
 {
 
@@ -219,72 +240,78 @@ void G3dwhDialog::removeButton_Clicked()
     else
         removeList.append("models/"+ui->downloadList->currentItem()->text());
 
-        for(int i=0;i<removeList.length();i++)
+    for(int i=0;i<removeList.length();i++)
+    {
+        QString filename=modelDir+"/"+removeList.at(i);
+        QFile file(filename);
+        file.remove();
+        updateDownloads();
+
+        QFile htmlSources(modelDir+"/models/sources");
+        if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
+            return;
+
+        QStringList fileContent;
+
+        while (!htmlSources.atEnd())
         {
-            QString filename=modelDir+"/"+removeList.at(i);
-            QFile file(filename);
-            file.remove();
-            updateDownloads();
-
-            QFile htmlSources(modelDir+"/models/sources");
-            if (!htmlSources.open(QIODevice::ReadOnly | QIODevice::Text))
-                return;
-
-            QStringList fileContent;
-
-            while (!htmlSources.atEnd())
+            QByteArray fileInput = htmlSources.readLine();
+            QString line = fileInput;
+            if (!line.contains(filename,Qt::CaseInsensitive))
             {
-                QByteArray fileInput = htmlSources.readLine();
-                QString line = fileInput;
-                if (!line.contains(filename,Qt::CaseInsensitive))
-                {
-                    fileContent.append(line);
-                }
-            }
-
-            htmlSources.remove();
-
-            if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
-                return;
-
-            QTextStream out(&htmlSources);
-            for(int i=0; i<fileContent.length(); i++)
-            {
-                out << fileContent[i];
+                fileContent.append(line);
             }
         }
+
+        htmlSources.remove();
+
+        if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
+            return;
+
+        QTextStream out(&htmlSources);
+        for(int i=0; i<fileContent.length(); i++)
+        {
+            out << fileContent[i];
+        }
     }
+
 }
 
-
+//Display popup menu for settings
 void G3dwhDialog::menuButton_Clicked()
 {
     QPoint displayPoint = QCursor::pos();
     settingsMenu->popup(displayPoint,0);
 }
 
+//Actions for settings popup menu
 void G3dwhDialog::settingsMenuAction()
 {
     if (testSettingA->isChecked())
-        qDebug()<<"nyan";
+        LogInfo("Option1 set");
     else
-        qDebug()<<"oh noes";
+        LogInfo("Option1 unset");
 }
 
+//Add the model file specified if pathToFile to scene
 void G3dwhDialog::addToScene(QString pathToFile)
 {
     QString daeRef;
-    // get dae file reference to daeref
+    //Unpack the downloaded zip containing the model and textures
     unpackDownload(pathToFile, daeRef);
+    //Check that the directory structure of unpacked model is like we want
     checkDirStructure(pathToFile, daeRef);
+
+    //Add the model to the scene
     bool clearScene = false;
-    qDebug()<<multiSelectionList;
     SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
     if (sceneStruct)
         sceneStruct->InstantiateContent(daeRef, Vector3df(), clearScene);
 }
 
+//Check directory structure and repair if needed
+//The required structure if modelname/models/model.dae modelname/images/textures
 void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
 {
     QString targetDirName = sceneDir+pathToDir.replace(".zip","/");
@@ -326,10 +353,9 @@ void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
             }
         }
     }
-
-
 }
 
+//Handle download request from webview
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
 {
     QNetworkRequest newRequest = request;
@@ -343,12 +369,15 @@ void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
 
 }
 
+//Update progress bar
 void G3dwhDialog::downloadProgress(qint64 bytesReceived, qint64 bytesTotal)
 {
     ui->downloadProgress->setMaximum(bytesTotal);
     ui->downloadProgress->setValue(bytesReceived);
 }
 
+//Called when download sends finished signal.
+//If download wasn't aborted write the downloaded data to file
 void G3dwhDialog::downloadFinished()
 {
     ui->downloadProgress->setValue(0);
@@ -380,21 +409,24 @@ void G3dwhDialog::downloadFinished()
     }
 
     downloadAborted=false;
+    //Save url of origin to sources and update the list of downloaded models
     saveHtmlPath();
     updateDownloads();
 
 }
 
+//Called when url changes, prevents moving away from 3d Warehouse
 void G3dwhDialog::urlChanged(QUrl url)
 {
     QString newUrl=url.toString();
 
     if(!newUrl.contains("sketchup.google.com/3dwarehouse"))
     {
-        //      ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+        ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     }
 }
 
+//Save url reference of downloaded model to sources file
 void G3dwhDialog::saveHtmlPath()
 {
     QFile htmlSources(modelDir+"/models/sources");
@@ -405,6 +437,7 @@ void G3dwhDialog::saveHtmlPath()
     out << htmlSource+"|"+fileName+"\n";
 }
 
+//Load url reference for file
 void G3dwhDialog::loadHtmlPath(QString file)
 {
     QFile htmlSources(modelDir+"/models/sources");
@@ -434,6 +467,10 @@ void G3dwhDialog::linkHovered(QString url, QString title, QString content)
     //qDebug()<<url;
 }
 
+//Called when metadata of network request changes. The complete metadata contains
+//information needed to determine the type of data being downloaded.
+//If datatype is not application/zip abort the download.
+//Compose the filename from the title of the models page.
 void G3dwhDialog::readMetaData()
 {
     QNetworkReply *reply = ((QNetworkReply*)sender());
@@ -455,6 +492,7 @@ void G3dwhDialog::readMetaData()
     }
 }
 
+//Update list of downloaded models
 void G3dwhDialog::updateDownloads()
 {
     ui->downloadList->clear();
@@ -468,17 +506,21 @@ void G3dwhDialog::updateDownloads()
     ui->downloadList->addItems(downloadedItems);
 }
 
+//Handle download request when download link is clicked.
 void G3dwhDialog::unsupportedContent(QNetworkReply *reply)
 {
     QNetworkRequest request(reply->url());
     downloadRequested(request);
 }
 
+//Set the path to directory to the currently open scene
 void G3dwhDialog::setScenePath(QString scenePath)
 {
     sceneDir = scenePath;
 }
 
+
+//Unpack the zip archive containing the model
 int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
 {
     QFile inFile(modelDir+"/"+file);
@@ -486,6 +528,7 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
 
     QString targetName = file.replace(".zip","/");
 
+    //Check if the file was already unpacked
     QDir testDir(sceneDir+targetName);
     QStringList filter;
     filter<<"*.dae";
@@ -506,6 +549,8 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
     {
         QDir().mkpath(sceneDir+targetName);
     }
+
+    //Use QuaZip to extract the files
 
     QuaZip zip(inFile.fileName());
 
@@ -532,19 +577,18 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
         if (name.endsWith(".dae"))
         {
             name.replace(" ","");
+            //daeRef contains the path to the model file
             daeRef = targetName + name;
         }
         QString dirn = sceneDir + targetName + name;
 
-        if (name.contains('/')) { // subdirectory support
-            // there must be a more elegant way of doing this
-            // but I couldn't find anything useful in QDir
+        if (name.contains('/')) {
             dirn.chop(dirn.length() - dirn.lastIndexOf("/"));
             QDir().mkpath(dirn);
         }
         outFile.setFileName( sceneDir + targetName + name);
 
-
+        //Write extracted data to file
         outFile.open(QIODevice::WriteOnly);
         char buf[4096];
         int len = 0;
