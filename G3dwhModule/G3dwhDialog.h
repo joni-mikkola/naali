@@ -44,6 +44,7 @@ private:
     QPushButton *addButton;
     QPushButton *removeButton;
     QPushButton *menuButton;
+    QPushButton *helpButton;
     QLabel *infoLabel;
 
     QString fileName;
@@ -81,6 +82,7 @@ private slots:
     void addButton_Clicked();
     void removeButton_Clicked();
     void menuButton_Clicked();
+    void helpButton_Clicked();
 
     void settingsMenuAction();
 };

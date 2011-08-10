@@ -71,6 +71,8 @@ private:
     QPointer<G3dwhDialog> warehouse_;
     //Foundation::Framework *framework; ///< Framework.
 
+private slots:
+    void nullifyDialog();
 public slots:
     void ShowG3dwhWindow();
 };

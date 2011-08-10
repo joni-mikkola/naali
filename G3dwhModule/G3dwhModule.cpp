@@ -77,12 +77,12 @@ void G3dwhModule::Update(f64 frametime)
 
 void G3dwhModule::ShowG3dwhWindow()
 {
-
     if(warehouse_.isNull())
     {
         std::string modelPath=GetFramework()->GetPlatform()->GetApplicationDataDirectory();
 
         warehouse_ = new G3dwhDialog(framework_, modelPath, GetFramework()->Ui()->MainWindow());
+        connect(warehouse_,SIGNAL(finished(int)),this,SLOT(nullifyDialog()));
         warehouse_->show();
 
         std::vector<AssetStoragePtr> storages = framework_->Asset()->GetAssetStorages();
@@ -99,11 +99,12 @@ void G3dwhModule::ShowG3dwhWindow()
                 LogInfo( scenePath.toStdString());
                 warehouse_->setScenePath(scenePath);
                 warehouse_->disableButtons(false);
+
                 return;
             }
-            LogInfo("No default storage added, models can't be added\nAdd new storage to start creating scene");
-            warehouse_->disableButtons(true);
         }
+        LogInfo("No default storage added, models can't be added\nAdd new storage to start creating scene");
+        warehouse_->disableButtons(true);
     }
     else
     {
@@ -113,6 +114,10 @@ void G3dwhModule::ShowG3dwhWindow()
 
 }
 
+void G3dwhModule::nullifyDialog()
+{
+    warehouse_=NULL;
+}
 
 extern "C" void POCO_LIBRARY_API SetProfiler(Foundation::Profiler *profiler);
 void SetProfiler(Foundation::Profiler *profiler)

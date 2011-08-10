@@ -7,6 +7,7 @@
 #include <QString>
 #include <QDirIterator>
 #include <QMouseEvent>
+#include <QMessageBox>
 
 #include <quazip.h>
 #include <quazipfile.h>
@@ -74,10 +75,17 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPat
     removeButton->setToolTip("Delete the downloaded model");
     connect(removeButton, SIGNAL(clicked()), this, SLOT(removeButton_Clicked()));
 
+    /*
     menuButton = new QPushButton(this);
     menuButton->setText("SETTINGS");
     menuButton->setToolTip("Import Settings");
     connect(menuButton, SIGNAL(clicked()), this, SLOT(menuButton_Clicked()));
+    */
+
+    helpButton = new QPushButton(this);
+    helpButton->setText("HELP");
+    helpButton->setToolTip("Help");
+    connect(helpButton, SIGNAL(clicked()), this, SLOT(helpButton_Clicked()));
 
     settingsMenu = new QMenu();
     testSettingA =  settingsMenu->addAction("TEST SETTING 1");
@@ -97,8 +105,10 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPat
 
     toolBar->addWidget(addButton);
     toolBar->addWidget(removeButton);
-    toolBar->addWidget(menuButton);
+    //toolBar->addWidget(menuButton);
+    toolBar->addWidget(helpButton);
     toolBar->addWidget(infoLabel);
+
 
     ui->warehouseView->installEventFilter(this);
 
@@ -122,7 +132,7 @@ void G3dwhDialog::keyPressEvent(QKeyEvent *e)
     if(e->key() == Qt::Key_Control)
     {
         if(ui->downloadList->currentItem()!=NULL)
-        multiSelectionList.append("models/"+ui->downloadList->currentItem()->text());
+            multiSelectionList.append("models/"+ui->downloadList->currentItem()->text());
 
         fileName.clear();
         ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
@@ -143,6 +153,7 @@ void G3dwhDialog::keyReleaseEvent(QKeyEvent *e)
     {
         multiSelectionList.clear();
         ui->downloadList->clearSelection();
+        ui->downloadList->setCurrentItem(NULL);
         ui->downloadList->setSelectionMode(QAbstractItemView::SingleSelection);
         multiSelection=false;
     }
@@ -206,17 +217,22 @@ void G3dwhDialog::addButton_Clicked()
     {
         if(multiSelection)
         {
-            for(int i=0;i<multiSelectionList.length();i++)
+            if(!multiSelectionList.empty())
             {
-                QString filename=multiSelectionList.at(i);
-                addToScene(filename);
+                for(int i=0;i<multiSelectionList.length();i++)
+                {
+                    QString filename=multiSelectionList.at(i);
+                    addToScene(filename);
+                }
             }
         }
-        else
+        else if(ui->downloadList->currentItem()!=NULL)
         {
             QString filename="models/"+ui->downloadList->currentItem()->text();
             addToScene(filename);
         }
+        else
+            LogInfo("No item selected");
     }
     else
         LogInfo("No models downloaded");
@@ -282,6 +298,29 @@ void G3dwhDialog::menuButton_Clicked()
 {
     QPoint displayPoint = QCursor::pos();
     settingsMenu->popup(displayPoint,0);
+}
+
+void G3dwhDialog::helpButton_Clicked()
+{
+    QMessageBox *helpBox = new QMessageBox();
+    helpBox->setWindowTitle("Help");
+    helpBox->setText("How to use:\n" \
+                     "Downloading models: Once you find a model you would like to download " \
+                     "click \"Download Model\" and select Collada if available. All models " \
+                     "aren't available for download or not in Collada format. The downloaded " \
+                     "models are listed on the right. By clicking a file in the list you are " \
+                     "directed to the page of the model for details about it.\n\n" \
+                     "Adding models to the scene: Select the model you want to add from the " \
+                     "list and click \"ADD TO SCENE\". You can select multiple models by " \
+                     "by holding down the Ctrl-key.\n\n"\
+                     "Deleting models: You can delete the downloaded model from your computer " \
+                     "by selecting it from the list and clicking \"DELETE\". You can select "\
+                     "multiple models by holding down the Ctrl-key.\n\n" \
+                     "Use the keys on toolbar to move to next or previous page, refresh the " \
+                     "page or to stop loading the page. If your mouse has buttons for next/previous " \
+                     "page they should work too.");
+    helpBox->setStandardButtons(QMessageBox::Ok);
+    helpBox->exec();
 }
 
 //Actions for settings popup menu
@@ -386,18 +425,19 @@ void G3dwhDialog::downloadFinished()
     if( downloadAborted == false )
     {
         QFile fileTest(fileName);
-
+        qDebug()<<fileTest.fileName();
         int index=0;
 
         while(fileTest.exists())
         {
             QString indexStr;
             indexStr.setNum(index);
-            QStringList newFileName=fileTest.fileName().split(".");
-            QString modelName = newFileName[0];
+            QString modelName = fileTest.fileName();
+            modelName.replace(".zip","");
+            qDebug()<<modelName;
             modelName.replace(QRegExp("_[0-9]{1,9}$"),"");
 
-            fileTest.setFileName(modelName+"_"+indexStr+"."+newFileName[1]);
+            fileTest.setFileName(modelName+"_"+indexStr+".zip");
             fileName=fileTest.fileName();
             index++;
         }
