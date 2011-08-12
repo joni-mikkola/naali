@@ -42,7 +42,17 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPat
     toolBar = new QToolBar(this);
     toolBar->setObjectName(QString::fromUtf8("toolBar"));
 
+    tabBar = new QTabBar(this);
+    tabBar->addTab("Google 3D Warehouse");
+    tabBar->addTab("OurBricks");
+
+    tabOneUrl=QUrl("http://sketchup.google.com/3dwarehouse/");
+    tabTwoUrl=QUrl("http://ourbricks.com");
+
     ui->gridLayout->addWidget(toolBar);
+    ui->gridLayout->addWidget(tabBar,0,0,0);
+    ui->gridLayout->removeWidget(ui->warehouseView);
+    ui->gridLayout->addWidget(ui->warehouseView,1,0,0);
 
     ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     ui->warehouseView->show();
@@ -111,6 +121,8 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPat
 
 
     ui->warehouseView->installEventFilter(this);
+
+    connect(tabBar,SIGNAL(currentChanged(int)),this,SLOT(currentTabChanged(int)));
 
     connect(ui->warehouseView->page(), SIGNAL(unsupportedContent(QNetworkReply*)), this, SLOT(unsupportedContent(QNetworkReply*)));
 
@@ -332,6 +344,20 @@ void G3dwhDialog::settingsMenuAction()
         LogInfo("Option1 unset");
 }
 
+void G3dwhDialog::currentTabChanged(int index)
+{
+    switch (index){
+    case 0:
+        tabTwoUrl=ui->warehouseView->url();
+        ui->warehouseView->load(tabOneUrl);
+        break;
+    case 1:
+        tabOneUrl=ui->warehouseView->url();
+        ui->warehouseView->load(tabTwoUrl);
+        break;
+    }
+}
+
 //Add the model file specified if pathToFile to scene
 void G3dwhDialog::addToScene(QString pathToFile)
 {
@@ -462,7 +488,7 @@ void G3dwhDialog::urlChanged(QUrl url)
 
     if(!newUrl.contains("sketchup.google.com/3dwarehouse"))
     {
-        ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+        //ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
     }
 }
 
@@ -515,8 +541,10 @@ void G3dwhDialog::readMetaData()
 {
     QNetworkReply *reply = ((QNetworkReply*)sender());
     QString dataType=reply->header(QNetworkRequest::ContentTypeHeader).toString();
-    if (dataType != "application/zip")
+    qDebug()<<dataType;
+    if (dataType != "application/zip" && dataType !="application/octet-stream")
     {
+        qDebug()<<dataType;
         downloadAborted=true;
         reply->close();
         infoLabel->setText("Wrong format, select Collada if available.");

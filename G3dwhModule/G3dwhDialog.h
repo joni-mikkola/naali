@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QMenu>
 #include <QStringList>
+#include <QTabBar>
 
 #include "SceneFwd.h"
 #include "AssetReference.h"
@@ -40,6 +41,7 @@ private:
     Ui::G3dwhDialog *ui;
 
     QToolBar *toolBar;
+    QTabBar *tabBar;
 
     QPushButton *addButton;
     QPushButton *removeButton;
@@ -51,6 +53,8 @@ private:
     QString sceneDir;
     QString htmlSource;
     QString modelDir;
+    QUrl tabOneUrl;
+    QUrl tabTwoUrl;
 
     bool downloadAborted;
     bool multiSelection;
@@ -85,6 +89,7 @@ private slots:
     void helpButton_Clicked();
 
     void settingsMenuAction();
+    void currentTabChanged(int index);
 };
 
 #endif // G3DWHDIALOG_H
