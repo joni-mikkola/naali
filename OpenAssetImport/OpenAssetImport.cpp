@@ -122,7 +122,7 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
 {
-    //Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_LOW);
+    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
     meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
@@ -135,7 +135,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     //Ogre::LogManager::getSingleton().logMessage("Filename " + filename);
 
     this->addr = addr;
-    const aiScene *scene;
+
 
     Assimp::Importer importer;
 
@@ -309,7 +309,8 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                     if (addr.startsWith("http"))
                         FixHttpReference(materialInfo, addr);
                     else
-                        FixLocalReference(materialInfo, addr);
+                        if (!scene->HasTextures())
+                            FixLocalReference(materialInfo, addr);
                 }
 
                 if (fileLocation.startsWith("http"))
@@ -864,7 +865,7 @@ Ogre::String ReplaceSpaces(const Ogre::String& s)
 Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* mat, const Ogre::String& mDir)
 {
     static int dummyMatCount = 0;
-
+    static int texCount = 0;
     // extreme fallback texture -- 2x2 hot pink
     Ogre::uint8 s_RGB[] = {0, 0, 0, 128, 0, 255, 128, 0, 255, 128, 0, 255};
 
@@ -896,6 +897,9 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     Ogre::String outPath;
     Ogre::StringUtil::splitFilename(Ogre::String(szPath.data), basename, outPath);
     Ogre::LogManager::getSingleton().logMessage("Creating " + addr.toStdString());
+    
+    if (scene->HasTextures() && szPath.length > 0)
+        basename.insert(0, addr.right(addr.length() - (addr.lastIndexOf('/')+1)).toStdString());
 
     Ogre::ResourceManager::ResourceCreateOrRetrieveResult status = ogreMaterialMgr->createOrRetrieve(ReplaceSpaces(basename), "General", true);
     Ogre::MaterialPtr ogreMaterial = status.first;
@@ -944,12 +948,61 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
 
     if (mat->GetTexture(type, 0, &path) == AI_SUCCESS)
     {
+
         //hack for showing back and front faces when loading material containing texture
         //it's working for 3d warehouse models though the problem is probably in the models and how the faces has been set by the modeler
         //ogreMaterial->setCullingMode(Ogre::CULL_NONE);
 
         //set texture info into the ogreMaterial
-        Ogre::TextureUnitState* texUnitState = ogreMaterial->getTechnique(0)->getPass(0)->createTextureUnitState(basename);
+        if (!scene->HasTextures())
+            Ogre::TextureUnitState* texUnitState = ogreMaterial->getTechnique(0)->getPass(0)->createTextureUnitState(basename);
+        else
+        {
+            // If data[0] is *, assume texture index is given
+            if (path.data[0] == '*')
+            {
+                Ogre::Image img;
+
+                int texIndex;
+                std::string parsedReference = path.data;
+                parsedReference.erase(0, 1);
+                std::stringstream str(parsedReference);
+
+                // Parse number after * char in path.data
+                str >> texIndex;
+
+                // Hint for compressed texture format (e.g. "jpg", "png" etc)
+                std::string format = scene->mTextures[texIndex]->achFormatHint;
+                parsedReference.append("." + format);
+
+                QString modelFile = addr.mid(addr.lastIndexOf('/') + 1, addr.length() - addr.lastIndexOf('/'));
+                modelFile = modelFile.left(modelFile.lastIndexOf('.'));
+                parsedReference.insert(0, modelFile.toStdString());
+
+                // Create datastream from scene->mTextures[texIndex] where texIndex points for each compressed texture data
+                // mWidth stores texture size in bytes
+                Ogre::DataStreamPtr altStrm(OGRE_NEW Ogre::MemoryDataStream((unsigned char*)scene->mTextures[texIndex]->pcData, scene->mTextures[texIndex]->mWidth, false));
+                // Load image to Ogre::Image
+                img.load(altStrm);
+                // Load image to Ogre Resourcemanager
+                Ogre::TextureManager::getSingleton().loadImage(parsedReference.c_str(), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME, img, Ogre::TEX_TYPE_2D, 0);
+
+                // Png format might contain alpha data so allow alpha blending
+                if (format == "png")
+                {
+                    // Alpha blending needs fixing
+                    ogreMaterial->setSceneBlending(Ogre::SBT_TRANSPARENT_ALPHA);
+                    ogreMaterial->setDepthWriteEnabled(false);
+                    ogreMaterial->setDepthCheckEnabled(true);
+                    //ogreMaterial->setDepthBias(0.01f, 1.0f);
+                    ogreMaterial->setDepthFunction(Ogre::CMPF_LESS );
+                }
+
+                //Set loaded image as a texture reference. So Tundra knows name should be loaded from ResourceManager
+                ogreMaterial->getTechnique(0)->getPass(0)->createTextureUnitState(parsedReference.c_str());
+            }
+
+        }
 
     }
     ogreMaterial->load();

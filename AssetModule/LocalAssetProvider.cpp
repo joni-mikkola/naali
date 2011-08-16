@@ -1,6 +1,7 @@
 // For conditions of distribution and use, see copyright notice in license.txt
 
 #include "StableHeaders.h"
+#include "OgreTextureManager.h"
 #include "DebugOperatorNew.h"
 #include "MemoryLeakCheck.h"
 #include "AssetModule.h"
@@ -29,6 +30,29 @@ LocalAssetProvider::LocalAssetProvider(Foundation::Framework* framework_)
 
 LocalAssetProvider::~LocalAssetProvider()
 {
+}
+
+bool LoadFileFromOgreResource(QString &ref, std::vector<u8> &dst)
+{
+    Ogre::TextureManager & manager = Ogre::TextureManager::getSingleton();
+    manager.load(ref.toStdString().c_str(), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
+    Ogre::TexturePtr tex = (Ogre::TexturePtr)manager.getByName(ref.toStdString().c_str());
+
+    if (!tex.isNull())
+    {
+        Ogre::Image img;
+        tex->convertToImage(img);
+        Ogre::DataStreamPtr konv = img.encode("png");
+        std::string test = konv->getAsString();
+
+        for (int i = 0; i < test.length(); i++)
+            dst.push_back(test[i]);
+
+        konv->close();
+        return true;
+    }
+    else
+        return false;
 }
 
 QString LocalAssetProvider::Name()
@@ -212,7 +236,11 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
 
-        if (path.isEmpty() && !IsAssimpTexture(ref))
+        // Check is reference is found from Ogre::ResourceManager
+        Ogre::TextureManager & manager = Ogre::TextureManager::getSingleton();
+        bool exist = manager.resourceExists(ref.toStdString().c_str());
+
+        if (path.isEmpty() && !IsAssimpTexture(ref) && !exist)
         {
             QString reason = "Failed to find local asset with filename \"" + ref + "\"!";
 //            AssetModule::LogWarning(reason.toStdString());
@@ -233,6 +261,10 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         }
         else
             success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
+
+        // Try to load data from Ogre ResourceManager
+        if (!success && exist)
+            success = LoadFileFromOgreResource(ref, transfer->rawAssetData);
 
         if (!success)
         {

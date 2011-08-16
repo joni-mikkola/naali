@@ -54,6 +54,7 @@ public:
 
 
 private:
+    const aiScene *scene;
     QString addr;
     bool generateMaterials;
     void linearScaleMesh(Ogre::MeshPtr mesh, int targetSize);
