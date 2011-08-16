@@ -146,7 +146,7 @@ void G3dwhDialog::keyPressEvent(QKeyEvent *e)
         if(ui->downloadList->currentItem()!=NULL)
             multiSelectionList.append("models/"+ui->downloadList->currentItem()->text());
 
-        fileName.clear();
+        modelFileName.clear();
         ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
         multiSelection=true;
     }
@@ -191,13 +191,55 @@ bool G3dwhDialog::eventFilter(QObject *o, QEvent *e)
         QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(e);
         if (mouseEvent->button() == Qt::XButton1)
         {
-            ui->warehouseView->triggerPageAction(QWebPage::Back, false);
+            //Check which tab is open and check where the previous page was from.
+            //Change tab if needed and load the previous page.
+            if(tabBar->currentIndex()==0)
+            {
+                if(ui->warehouseView->page()->history()->backItem().url().toString().contains("google"))
+                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
+                else
+                {
+                    tabBar->setCurrentIndex(1);
+                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
+                }
+            }else if(tabBar->currentIndex()==1)
+            {
+                if(ui->warehouseView->page()->history()->backItem().url().toString().contains("ourbricks"))
+                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
+                else
+                {
+                    tabBar->setCurrentIndex(0);
+                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
+                }
+            }
+
             mouseEvent->accept();
             return true;
         }
         if (mouseEvent->button() == Qt::XButton2)
         {
-            ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
+            //Check which tab is open and check where the next page was from.
+            //Change tab if needed and load the next page.
+            if(tabBar->currentIndex()==0)
+            {
+                if(ui->warehouseView->page()->history()->forwardItem().url().toString().contains("google"))
+                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
+                else
+                {
+                    tabBar->setCurrentIndex(1);
+                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
+                }
+            }else if(tabBar->currentIndex()==1)
+            {
+                if(ui->warehouseView->page()->history()->forwardItem().url().toString().contains("ourbricks"))
+                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
+                else
+                {
+                    tabBar->setCurrentIndex(0);
+                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
+                }
+            }
+
             mouseEvent->accept();
             return true;
         }
@@ -216,8 +258,8 @@ void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
     }
     else
     {
-        QString filename=modelDir+"/models/"+item->text();
-        loadHtmlPath(filename);
+        QString modelFileName=modelDir+"/models/"+item->text();
+        loadHtmlPath(modelFileName);
     }
 }
 
@@ -233,15 +275,15 @@ void G3dwhDialog::addButton_Clicked()
             {
                 for(int i=0;i<multiSelectionList.length();i++)
                 {
-                    QString filename=multiSelectionList.at(i);
-                    addToScene(filename);
+                    QString modelFileName=multiSelectionList.at(i);
+                    addToScene(modelFileName);
                 }
             }
         }
         else if(ui->downloadList->currentItem()!=NULL)
         {
-            QString filename="models/"+ui->downloadList->currentItem()->text();
-            addToScene(filename);
+            QString modelFileName="models/"+ui->downloadList->currentItem()->text();
+            addToScene(modelFileName);
         }
         else
             LogInfo("No item selected");
@@ -270,8 +312,8 @@ void G3dwhDialog::removeButton_Clicked()
 
     for(int i=0;i<removeList.length();i++)
     {
-        QString filename=modelDir+"/"+removeList.at(i);
-        QFile file(filename);
+        QString modelFileName=modelDir+"/"+removeList.at(i);
+        QFile file(modelFileName);
         file.remove();
         updateDownloads();
 
@@ -285,7 +327,8 @@ void G3dwhDialog::removeButton_Clicked()
         {
             QByteArray fileInput = htmlSources.readLine();
             QString line = fileInput;
-            if (!line.contains(filename,Qt::CaseInsensitive))
+            qDebug()<<modelFileName;
+            if (!line.contains(modelFileName,Qt::CaseSensitive))
             {
                 fileContent.append(line);
             }
@@ -348,10 +391,12 @@ void G3dwhDialog::currentTabChanged(int index)
 {
     switch (index){
     case 0:
+        if(ui->warehouseView->url()!=tabOneUrl)
         tabTwoUrl=ui->warehouseView->url();
         ui->warehouseView->load(tabOneUrl);
         break;
     case 1:
+        if(ui->warehouseView->url()!=tabTwoUrl)
         tabOneUrl=ui->warehouseView->url();
         ui->warehouseView->load(tabTwoUrl);
         break;
@@ -372,11 +417,14 @@ void G3dwhDialog::addToScene(QString pathToFile)
     SceneStructureModule *sceneStruct = framework_->GetModule<SceneStructureModule>();
 
     if (sceneStruct)
+        //Send path to dae file (daeRef) to SceneStructureModule and add the model to the scene
         sceneStruct->InstantiateContent(daeRef, Vector3df(), clearScene);
+    else
+        LogInfo("No SceneStructureModule found");
 }
 
 //Check directory structure and repair if needed
-//The required structure if modelname/models/model.dae modelname/images/textures
+//The required structure is modelname/models/model.dae modelname/images/texture.imageformat
 void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
 {
     QString targetDirName = sceneDir+pathToDir.replace(".zip","/");
@@ -392,28 +440,30 @@ void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
 
         QString dirContent;
         QStringList filter;
-        filter<<"*.dae"<<"*.jpg"<<"*.png"<<"*.gif"<<"*.jpeg";
+        filter<<"*.dae"<<"*.jpg"<<"*.png"<<"*.gif"<<"*.jpeg"<<"*.JPG"<<"*.DAE"<<"*.PNG"<<"*.GIF"<<"*.JPEG";
         QDirIterator dirIterator(targetDirName,filter,QDir::Files|QDir::NoSymLinks|QDir::NoDotAndDotDot,QDirIterator::Subdirectories);
 
         while(dirIterator.hasNext())
         {
             dirIterator.next();
-            dirContent=dirIterator.fileName();
+            dirContent=dirIterator.filePath();
 
             if(dirContent.contains(".dae"))
             {
-                QFile daeFile(targetDirName+dirContent);
-                daeFile.rename(targetDirName+"/models/"+dirContent);
-                daeRef=targetDirName+"/models/"+dirContent;
+                QFile daeFile(dirContent);
+                daeFile.rename(targetDirName+"models/"+dirIterator.fileName());
+                daeRef=daeFile.fileName();
             }
+
             for(int i=1;i<filter.length();i++)
             {
                 QString imageFilter=filter[i];
                 imageFilter.replace("*","");
                 if(dirContent.contains(imageFilter))
                 {
-                    QFile imageFile(targetDirName+dirContent);
-                    imageFile.rename(targetDirName+"/images/"+dirContent);
+                    QFile imageFile(dirContent);
+                    qDebug()<<imageFile.fileName();
+                    imageFile.rename(targetDirName+"images/"+dirIterator.fileName());
                 }
             }
         }
@@ -424,7 +474,7 @@ void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
 void G3dwhDialog::downloadRequested(const QNetworkRequest &request)
 {
     QNetworkRequest newRequest = request;
-    newRequest.setAttribute(QNetworkRequest::User,"tmpFileName");
+    newRequest.setAttribute(QNetworkRequest::User,"tmpmodelFileName");
     QNetworkAccessManager *networkManager = ui->warehouseView->page()->networkAccessManager();
     QNetworkReply *reply = networkManager->get(newRequest);
 
@@ -450,7 +500,7 @@ void G3dwhDialog::downloadFinished()
 
     if( downloadAborted == false )
     {
-        QFile fileTest(fileName);
+        QFile fileTest(modelFileName);
         qDebug()<<fileTest.fileName();
         int index=0;
 
@@ -460,15 +510,14 @@ void G3dwhDialog::downloadFinished()
             indexStr.setNum(index);
             QString modelName = fileTest.fileName();
             modelName.replace(".zip","");
-            qDebug()<<modelName;
             modelName.replace(QRegExp("_[0-9]{1,9}$"),"");
 
             fileTest.setFileName(modelName+"_"+indexStr+".zip");
-            fileName=fileTest.fileName();
+            modelFileName=fileTest.fileName();
             index++;
         }
 
-        QFile file(fileName);
+        QFile file(modelFileName);
         if (file.open(QFile::ReadWrite))
             file.write(reply->readAll());
         file.close();
@@ -485,10 +534,14 @@ void G3dwhDialog::downloadFinished()
 void G3dwhDialog::urlChanged(QUrl url)
 {
     QString newUrl=url.toString();
-
-    if(!newUrl.contains("sketchup.google.com/3dwarehouse"))
+    if(!newUrl.contains("sketchup.google.com/3dwarehouse") && !newUrl.contains("ourbricks.com"))
     {
-        //ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+        qDebug()<<"blaa";
+        if(tabBar->currentIndex()==0)
+            ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+
+        if(tabBar->currentIndex()==1)
+            ui->warehouseView->load(QUrl("http://ourbricks.com"));
     }
 }
 
@@ -500,7 +553,7 @@ void G3dwhDialog::saveHtmlPath()
         return;
 
     QTextStream out(&htmlSources);
-    out << htmlSource+"|"+fileName+"\n";
+    out << htmlSource+"|"+modelFileName+"\n";
 }
 
 //Load url reference for file
@@ -514,10 +567,20 @@ void G3dwhDialog::loadHtmlPath(QString file)
     {
         QByteArray fileInput = htmlSources.readLine();
         QString line = fileInput;
-        if (line.contains(file,Qt::CaseInsensitive))
+        if (line.contains(file,Qt::CaseSensitive))
         {
             QStringList parseList=line.split("|");
-            ui->warehouseView->load(QUrl(parseList[0]));
+            QString newUrl=parseList[0];
+
+            if(newUrl.contains("google"))
+                tabBar->setCurrentIndex(0);
+            else if(newUrl.contains("ourbricks"))
+                tabBar->setCurrentIndex(1);
+
+            qDebug()<<"index:"<<tabBar->currentIndex();
+
+            ui->warehouseView->load(QUrl(newUrl));
+
         }
     }
 
@@ -536,7 +599,7 @@ void G3dwhDialog::linkHovered(QString url, QString title, QString content)
 //Called when metadata of network request changes. The complete metadata contains
 //information needed to determine the type of data being downloaded.
 //If datatype is not application/zip abort the download.
-//Compose the filename from the title of the models page.
+//Compose the modelFileName from the title of the models page.
 void G3dwhDialog::readMetaData()
 {
     QNetworkReply *reply = ((QNetworkReply*)sender());
@@ -553,8 +616,8 @@ void G3dwhDialog::readMetaData()
     {
         QStringList titleList = ui->warehouseView->title().split(" by");
         QStringList parseList = titleList[0].split(" ");
-        fileName=modelDir+"/models/"+parseList.join("_")+".zip";
-        fileName.replace(",","");
+        modelFileName=modelDir+"/models/"+parseList.join("_")+".zip";
+        modelFileName.replace(",","");
         htmlSource = ui->warehouseView->url().toString();
 
     }
@@ -638,7 +701,7 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
         }
         name=zFile.getActualFileName();
         if(zFile.getZipError()!=UNZ_OK) {
-            qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
+            qWarning("testRead(): file.getmodelFileName(): %d", zFile.getZipError());
             return false;
         }
 
@@ -679,7 +742,7 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
 
 
         if(zFile.getZipError()!=UNZ_OK) {
-            qWarning("testRead(): file.getFileName(): %d", zFile.getZipError());
+            qWarning("testRead(): file.getmodelFileName(): %d", zFile.getZipError());
             return false;
         }
         if(!zFile.atEnd()) {
