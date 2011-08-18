@@ -14,17 +14,6 @@
 
 class QFileSystemWatcher;
 
-/// Returns true if string contains '#'
-bool IsAssimpTexture(const QString &filename);
-
-#ifdef ASSIMP_ENABLED
-/// Returns true if extension is AssImp supported
-bool IsAssimpSupported(const QString &filename);
-
-/// Loads material info from textureMap[ref] to dst vector
-bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &textureMap);
-#endif
-
 /// Loads the given local file into the specified vector. Clears all data previously in the vector.
 /// Returns true on success.
 bool LoadFileToVector(const char *filename, std::vector<u8> &dst);
@@ -41,6 +30,19 @@ QString GetResourceTypeFromResourceFileName(const char *name);
 /// Adds a trailing slash to the given string representing a directory path if it doesn't have one at the end already.
 QString GuaranteeTrailingSlash(const QString &source);
 
+/// Returns true if string contains '#'
+bool IsAssimpMaterial(const QString &filename);
+
+#ifdef ASSIMP_ENABLED
+
+/// Returns true if extension is AssImp supported
+bool IsAssimpSupported(const QString &filename);
+
+/// Loads material info from textureMap[ref] to dst vector
+bool LoadMaterialInfo(QString &ref, std::vector<u8> &dst, std::map<QString, QString> &textureMap);
+
+#endif
+
 class AssetAPI : public QObject
 {
     Q_OBJECT
@@ -52,14 +54,6 @@ public:
 
 public:
     
-    /// Since map sorts data according to key value, we need vector for holding real material index order
-    /// Example: "house.dae" is key to a vector which contains house.dae#material0.jpg.material, house.dae#texture0.jpg.material etc
-    /// in correct order. Map "sorts" all mapped value according to starting character
-    std::map<QString, std::vector<QString> > materialIndexMap;
-
-    /// Store all material information here. Example: house.dae#material0.jpg.material contains all material data
-    std::map<QString, QString> materialMap;
-
     /// Registers a type factory for creating assets of the type governed by the factory.
     void RegisterAssetTypeFactory(AssetTypeFactoryPtr factory);
 
@@ -88,6 +82,14 @@ public:
     /// Returns all the currently ongoing or waiting asset transfers.
     std::vector<AssetTransferPtr> PendingTransfers();
 
+    /// Since map sorts data according to key value, we need vector for holding real material index order
+    /// Example: "house.dae" is key to a vector which contains house.dae#material0.jpg.material, house.dae#texture0.jpg.material etc
+    /// in correct order. Map "sorts" all mapped value according to starting character, hence materialIndexMap is used
+    std::map<QString, std::vector<QString> > materialIndexMap;
+
+    /// Store all material information here. Example: house.dae#material0.jpg.material contains all material data
+    std::map<QString, QString> materialMap;
+
     /// Performs internal tick-based updates of the whole asset system. This function is intended to be called only by the core, do not call
     /// it yourself.
     void Update(f64 frametime);
@@ -105,7 +107,7 @@ public:
     /// Called by each AssetProvider to notify the Asset API that an asset upload transfer has completed. Do not call this function from client code.
     void AssetUploadTransferCompleted(IAssetUploadTransfer *transfer);
 
-    void AssetDependenciesCompleted(AssetTransferPtr transfer);
+    void AssetDependenciesCompleted(AssetTransferPtr transfer);  
 
     void NotifyAssetDependenciesChanged(AssetPtr asset);
 

@@ -176,21 +176,28 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
             boost::filesystem::path path(filename.toStdString());
 
             QString extension = QString(path.extension().c_str()).toLower();
+
+            // If mesh is supported by AssImp
             if (IsAssimpSupported(extension))
             {
                 std::string dirname = path.branch_path().string();
 
                 TundraLogic::SceneImporter sceneimporter(scene);
 
-                LogInfo(filename.toStdString());
-                LogInfo(dirname);
-
                 QStringList parsedRef = filename.split("/");
+                QString output= "local://";
                 int length=parsedRef.length();
-                QString output= "local://" + parsedRef[length-4] + "/" + parsedRef[length-3] + "/" + parsedRef[length-2] + "/";
 
-                if (parsedRef[length-4] != "models")
-                    output = "local://";
+                // This parsing is added since some models added through 3DwhModule might have same modelname and hence the reference
+                // is added with directories, e.g. models/house1/models/house.dae
+                if (length > 4)
+                {
+                    QString output= "local://" + parsedRef[length-4] + "/" + parsedRef[length-3] + "/" + parsedRef[length-2] + "/";
+
+                    // Assume file is not added using G3dwhModule because it's not following assumed folder structure
+                    if (parsedRef[length-4] != "models")
+                        output = "local://";
+                }
 
                 Transform worldtransform;
                 Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString(), dirname, worldtransform,
