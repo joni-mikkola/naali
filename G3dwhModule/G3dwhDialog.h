@@ -10,6 +10,8 @@
 #include <QMenu>
 #include <QStringList>
 #include <QTabBar>
+#include <QWebHistory>
+#include <QWebHistoryItem>
 
 #include "SceneFwd.h"
 #include "AssetReference.h"
@@ -49,7 +51,7 @@ private:
     QPushButton *helpButton;
     QLabel *infoLabel;
 
-    QString fileName;
+    QString modelFileName;
     QString sceneDir;
     QString htmlSource;
     QString modelDir;
@@ -65,12 +67,16 @@ private:
     QAction *testSettingB;
     QAction *testSettingC;
 
+    QList<QWebHistoryItem> tabOneHistory;
+    QList<QWebHistoryItem> tabTwoHistory;
+
     void updateDownloads();
     int unpackDownload(QString file, QString & daeRef);
     void addToScene(QString pathToFile);
     void saveHtmlPath();
     void loadHtmlPath(QString file);
     void checkDirStructure(QString pathToDir, QString & daeRef);
+    QString formatFileName(QString toFormat);
 
 private slots:
     void downloadRequested(const QNetworkRequest &);
@@ -90,6 +96,8 @@ private slots:
 
     void settingsMenuAction();
     void currentTabChanged(int index);
+    void backActionTriggered();
+    void forwardActionTriggered();
 };
 
 #endif // G3DWHDIALOG_H
