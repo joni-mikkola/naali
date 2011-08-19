@@ -230,6 +230,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
                ref = ref.left(lastSlash);
         }
 
+        // Don't cut string when using local://-providers
         if (ref.startsWith("local://"))
             ref = ref.mid(8);
 
@@ -240,7 +241,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         Ogre::TextureManager & manager = Ogre::TextureManager::getSingleton();
         bool exist = manager.resourceExists(ref.toStdString().c_str());
 
-        if (path.isEmpty() && !IsAssimpTexture(ref) && !exist)
+        if (path.isEmpty() && !IsAssimpMaterial(ref) && !exist)
         {
             QString reason = "Failed to find local asset with filename \"" + ref + "\"!";
 //            AssetModule::LogWarning(reason.toStdString());
@@ -253,7 +254,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         bool success;
 
-        if (IsAssimpTexture(ref))
+        if (IsAssimpMaterial(ref))
         {
 #ifdef ASSIMP_ENABLED
             success = LoadMaterialInfo(ref, transfer->rawAssetData, framework->Asset()->materialMap);

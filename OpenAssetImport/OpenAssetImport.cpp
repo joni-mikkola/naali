@@ -28,6 +28,8 @@
 #include <boost/tuple/tuple.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
+#define USE_SKELETONS
+
 static int meshNum = 0;
 
 inline Ogre::String toString(const aiColor4D& colour)
@@ -69,6 +71,18 @@ void FixHttpReference(QString &matRef, QString addRef)
     matRef.replace(indx+8, 0, addRef);
 }
 
+std::vector<QString> GetMeshNodes(const aiScene* mScene, const aiNode* pNode)
+{
+    std::vector<QString> nodeVector;
+    for ( int a=0; a<pNode->mChildren[0]->mNumChildren; ++a )
+    {
+        nodeVector.push_back(pNode->mChildren[0]->mChildren[a]->mName.data);
+        Ogre::LogManager::getSingleton().logMessage("Noud " + Ogre::String(pNode->mChildren[0]->mChildren[a]->mName.data) + " found.");
+    }
+    return nodeVector;
+}
+
+
 double degreeToRadian(double degree)
 {
     double radian = 0;
@@ -108,7 +122,7 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
                     points[1] *= minCoefficient;
                     points[2] *= minCoefficient;
                 }
-
+                
                 vbuf->unlock();
             }
         }
@@ -120,10 +134,93 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
     mMesh->_setBounds(mAAB);
 }
 
-bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr)
+void getBasePose(const aiScene * sc, const aiNode * nd)
+{
+    unsigned int i;
+    unsigned int n=0, k = 0, t;
+
+    //insert current mesh's bones into boneMatrices
+    for (n=0; n < nd->mNumMeshes; ++n)
+    {
+        const struct aiMesh* mesh = sc->mMeshes[nd->mMeshes[n]];
+
+        std::vector<aiMatrix4x4> boneMatrices( mesh->mNumBones);
+
+        // fill boneMatrices with current bone locations
+        for( size_t a = 0; a < mesh->mNumBones; ++a)
+        {
+            aiBone* bone = mesh->mBones[a];
+
+            // find the corresponding node by again looking recursively through the node hierarchy for the same name
+            aiNode* node = sc->mRootNode->FindNode(bone->mName);
+
+            // start with the mesh-to-bone matrix
+            boneMatrices[a] = bone->mOffsetMatrix;
+
+            // and now append all node transformations down the parent chain until we're back at mesh coordinates again
+            const aiNode* tempNode = node;
+
+            while( tempNode)
+            {
+                // check your matrix multiplication order here!!!
+                boneMatrices[a] = tempNode->mTransformation * boneMatrices[a];
+
+                tempNode = tempNode->mParent;
+            }
+        }
+
+        // all using the results from the previous code snippet
+        std::vector<aiVector3D> resultPos( mesh->mNumVertices);
+        std::vector<aiVector3D> resultNorm( mesh->mNumVertices);
+
+        // loop through all vertex weights of all bones
+        for( size_t a = 0; a < mesh->mNumBones; ++a)
+        {
+            const aiBone* bone = mesh->mBones[a];
+            const aiMatrix4x4& posTrafo = boneMatrices[a];
+
+            // 3x3 matrix, contains the bone matrix without the translation, only with rotation and possibly scaling
+            aiMatrix3x3 normTrafo = aiMatrix3x3( posTrafo);
+            for( size_t b = 0; b < bone->mNumWeights; ++b)
+            {
+                const aiVertexWeight& weight = bone->mWeights[b];
+
+                size_t vertexId = weight.mVertexId;
+                const aiVector3D& srcPos = mesh->mVertices[vertexId];
+                const aiVector3D& srcNorm = mesh->mNormals[vertexId];
+
+                resultPos[vertexId] += (posTrafo * srcPos) * weight.mWeight;
+                resultNorm[vertexId] += (normTrafo * srcNorm)* weight.mWeight;
+
+            }
+        }
+
+        for (t = 0; t < mesh->mNumFaces; ++t)
+        {
+            const struct aiFace* face = &mesh->mFaces[t];
+
+            for(i = 0; i < face->mNumIndices; i++)		// go through all vertices in face
+            {
+                int vertexIndex = face->mIndices[i];	// get group index for current index
+
+
+                mesh->mNormals[vertexIndex] = resultNorm[vertexIndex];
+                mesh->mVertices[vertexIndex] = resultPos[vertexIndex];
+            }
+
+        }
+    }
+
+    // draw all children
+    for (n = 0; n < nd->mNumChildren; n++   )
+    {
+        getBasePose(sc, nd->mChildren[n]);
+    }
+}
+
+bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr, int index)
 {
     Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
-    meshNum = 0;
 
     if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
     {
@@ -135,20 +232,20 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     //Ogre::LogManager::getSingleton().logMessage("Filename " + filename);
 
     this->addr = addr;
-
+    mAnimationSpeedModifier = 1.0f;
 
     Assimp::Importer importer;
 
-    // by default remove points and lines from the model, since these are usually
-    // degenerate structures from bad modelling or bad import/export.  if they
-    // are needed it can be turned on with IncludeLinesPoints
-    int removeSortFlags = importer.GetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE);
+
     this->generateMaterials = generateMaterials;
-    removeSortFlags |= aiPrimitiveType_POINT | aiPrimitiveType_LINE;
+    bool searchFromIndex = false;
 
     /// NOTICE!!!
     // Some converted mesh might show up pretty messed up, it's happening because some formats might
     // contain unnecessary vertex information, lines and points. Uncomment the line below for fixing this issue.
+    // by default remove points and lines from the model, since these are usually
+    // degenerate structures from bad modelling or bad import/export.  if they
+    // are needed it can be turned on with IncludeLinesPoints
 
     importer.SetPropertyInteger(AI_CONFIG_PP_SBP_REMOVE, aiPrimitiveType_LINE | aiPrimitiveType_POINT);
     /// END OF NOTICE
@@ -157,29 +254,39 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     // ...which should be easy to just change to 32 bit but it didn't seem to be the case
     importer.SetPropertyInteger(AI_CONFIG_PP_SLM_TRIANGLE_LIMIT, 21845);
 
-    importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
+    //importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_CAMERAS|aiComponent_LIGHTS|aiComponent_TEXTURES|aiComponent_ANIMATIONS);
     //importer.SetPropertyInteger(AI_CONFIG_FAVOUR_SPEED,1);
     //importer.SetPropertyInteger(AI_CONFIG_GLOB_MEASURE_TIME,0);
 
     // And have it read the given file with some example postprocessing
     // Usually - if speed is not the most important aspect for you - you'll
     // propably to request more postprocessing than we do in this example.
-    scene = importer.ReadFile(filename, 0 //aiProcessPreset_TargetRealtime_MaxQuality |  aiProcess_PreTransformVertices);/*
-                              | aiProcess_SplitLargeMeshes
-                              | aiProcess_FindInvalidData
-                              | aiProcess_GenNormals
-                              //| aiProcess_GenUVCoords
-                              //| aiProcess_TransformUVCoords
-                              | aiProcess_Triangulate
-                              | aiProcess_FlipUVs
-                              | aiProcess_JoinIdenticalVertices
-                              | aiProcess_PreTransformVertices
-                              | aiProcess_OptimizeMeshes
-                              | aiProcess_RemoveRedundantMaterials
-                              | aiProcess_ImproveCacheLocality
-                              //| aiProcess_LimitBoneWeights
-                              | aiProcess_SortByPType
-                              );
+
+    index = -1;
+
+    if (index != -1)
+        searchFromIndex = true;
+
+
+
+    unsigned int pFlags = 0
+                          | aiProcess_SplitLargeMeshes
+                          | aiProcess_FindInvalidData
+                          | aiProcess_GenSmoothNormals
+                          | aiProcess_Triangulate
+                          | aiProcess_FlipUVs
+                          | aiProcess_JoinIdenticalVertices
+                          //| aiProcess_PreTransformVertices
+                          | aiProcess_OptimizeMeshes
+                          | aiProcess_RemoveRedundantMaterials
+                          | aiProcess_ImproveCacheLocality
+                          | aiProcess_LimitBoneWeights
+                          | aiProcess_SortByPType;
+
+    if (!searchFromIndex)
+        pFlags = pFlags | aiProcess_PreTransformVertices;
+
+    scene = importer.ReadFile(filename, pFlags);
 
     // If the import failed, report it
     if( !scene)
@@ -189,18 +296,35 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         return false;
     }
 
-    grabNodeNamesFromNode(scene, scene->mRootNode);
+    if (scene->HasAnimations())
+        getBasePose(scene, scene->mRootNode);
 
+    grabNodeNamesFromNode(scene, scene->mRootNode);
+    //
 #ifdef USE_SKELETONS
     grabBoneNamesFromNode(scene, scene->mRootNode);
 #endif
 
-    const struct aiNode *rootNode = scene->mRootNode;
-
+    aiNode *rootNode = scene->mRootNode;
     aiMatrix4x4 transform;
-    transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
 
-    computeNodesDerivedTransform(scene, scene->mRootNode, transform);
+    if (searchFromIndex)
+    {
+        std::vector<QString> mainNodes = GetMeshNodes(scene, scene->mRootNode);
+        if (mainNodes.size() > 1 && mainNodes.size() <= index)
+        {
+            rootNode = scene->mRootNode->FindNode(QString(mainNodes[index]).toStdString().c_str());
+            transform.FromEulerAnglesXYZ(degreeToRadian(0), 0, degreeToRadian(180));
+        }
+        else
+            Ogre::LogManager::getSingleton().logMessage("Index " + Ogre::StringConverter::toString(index) + " not found! Loading whole mesh!");
+    }
+    else
+        transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
+
+    //transform = scene->mRootNode->mTransformation;
+
+    computeNodesDerivedTransform(scene, rootNode, transform);
 
 #ifdef USE_SKELETONS
     if(mBonesByName.size())
@@ -222,7 +346,8 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     }
 #endif
 
-    loadDataFromNode(scene, scene->mRootNode, mPath);
+    loadDataFromNode(scene, rootNode, mPath);
+
     Ogre::LogManager::getSingleton().logMessage("*** Finished loading ass file ***");
     Assimp::DefaultLogger::kill();
     
@@ -238,16 +363,16 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
 
         Ogre::SkeletonSerializer binSer;
-        binSer.exportSkeleton(mSkeleton.getPointer(), mPath + mBasename + ".skeleton");
+        binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/boy.skeleton");
     }
 
     Ogre::MeshSerializer meshSer;
     for(MeshVector::iterator it = mMeshes.begin(); it != mMeshes.end(); ++it)
     {
-        mMesh = *it;
+        Ogre::MeshPtr mMesh = *it;
         if(mBonesByName.size())
         {
-            mMesh->setSkeletonName(mBasename + ".skeleton");
+            mMesh->setSkeletonName("boy.skeleton");
         }
 
         Ogre::Mesh::SubMeshIterator smIt = mMesh->getSubMeshIterator();
@@ -256,9 +381,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             Ogre::SubMesh* sm = smIt.getNext();
             if (!sm->useSharedVertices)
             {
-
-
-
                 // AutogreMaterialic
 #if OGRE_VERSION_MINOR >= 8 && OGRE_VERSION_MAJOR >= 1
                 Ogre::VertexDeclaration* newDcl =
@@ -277,6 +399,8 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 }
             }
         }
+        meshSer.exportMesh(mMesh.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/boy.mesh");
+
     }
 #endif
 
@@ -327,6 +451,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 QString tmp = sm->getMaterialName().c_str();
                 matNameList.push_back(tmp + ".material");
             }
+
         }
     }
 
@@ -386,7 +511,7 @@ KeyframesMap::iterator& back)
     }
 }
 
-aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, KeyframesMap::iterator it)
+aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, KeyframesMap::iterator it, Ogre::Real ticksPerSecond)
 {
     aiVectorKey* translateKey = boost::get<0>(it->second);
     aiVector3D vect;
@@ -398,6 +523,7 @@ aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, Keyframe
     {
         KeyframesMap::reverse_iterator front;
         KeyframesMap::iterator back;
+
 
         GetInterpolationIterators< Int2Type<0> > (keyframes, it, front, back);
 
@@ -416,6 +542,7 @@ aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, Keyframe
         if(frontKey && backKey)
         {
             float prop = (it->first - frontKey->mTime) / (backKey->mTime - frontKey->mTime);
+            prop /= ticksPerSecond;
             vect = ((backKey->mValue - frontKey->mValue) * prop) + frontKey->mValue;
         }
 
@@ -432,7 +559,7 @@ aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, Keyframe
     return vect;
 }
 
-aiQuaternion getRotate(aiNodeAnim* node_anim, KeyframesMap& keyframes, KeyframesMap::iterator it)
+aiQuaternion getRotate(aiNodeAnim* node_anim, KeyframesMap& keyframes, KeyframesMap::iterator it, Ogre::Real ticksPerSecond)
 {
     aiQuatKey* rotationKey = boost::get<1>(it->second);
     aiQuaternion rot;
@@ -462,6 +589,7 @@ aiQuaternion getRotate(aiNodeAnim* node_anim, KeyframesMap& keyframes, Keyframes
         if(frontKey && backKey)
         {
             float prop = (it->first - frontKey->mTime) / (backKey->mTime - frontKey->mTime);
+            prop /= ticksPerSecond;
             aiQuaternion::Interpolate(rot, frontKey->mValue, backKey->mValue, prop);
         }
 
@@ -510,6 +638,8 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
     Ogre::LogManager::getSingleton().logMessage("channels = " + Ogre::StringConverter::toString(anim->mNumChannels));
 
     Ogre::Animation* animation;
+    mTicksPerSecond = (0 == anim->mTicksPerSecond) ? 24 : anim->mTicksPerSecond;
+    mTicksPerSecond *= mAnimationSpeedModifier;
 
     float cutTime = 0.0;
     if(mLoaderParams & LP_CUT_ANIMATION_WHERE_NO_FURTHER_CHANGE)
@@ -527,6 +657,7 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
                 if( node_anim->mPositionKeys[i] != node_anim->mPositionKeys[i-1])
                 {
                     timePos = node_anim->mPositionKeys[i].mTime;
+                    timePos /= mTicksPerSecond;
                 }
             }
 
@@ -535,6 +666,7 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
                 if( node_anim->mRotationKeys[i] != node_anim->mRotationKeys[i-1])
                 {
                     timeRot = node_anim->mRotationKeys[i].mTime;
+                    timeRot /= mTicksPerSecond;
                 }
             }
 
@@ -547,20 +679,29 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
     else
     {
         cutTime = Ogre::Math::POS_INFINITY;
-        animation = mSkeleton->createAnimation(Ogre::String(animName), Ogre::Real(anim->mDuration));
+        animation = mSkeleton->createAnimation(Ogre::String(animName), Ogre::Real(anim->mDuration/mTicksPerSecond));
     }
 
-    animation->setInterpolationMode(Ogre::Animation::IM_LINEAR);
+    animation->setInterpolationMode(Ogre::Animation::IM_LINEAR); //FIXME: Is this always true?
+
 
     Ogre::LogManager::getSingleton().logMessage("Cut Time " + Ogre::StringConverter::toString(cutTime));
+
 
     for (int i = 0; i < (int)anim->mNumChannels; i++)
     {
         Ogre::TransformKeyFrame* keyframe;
 
         aiNodeAnim* node_anim = anim->mChannels[i];
+
+
         Ogre::LogManager::getSingleton().logMessage("Channel " + Ogre::StringConverter::toString(i));
         Ogre::LogManager::getSingleton().logMessage("affecting node: " + Ogre::String(node_anim->mNodeName.data));
+        //Ogre::LogManager::getSingleton().logMessage("position keys: " + Ogre::StringConverter::toString(node_anim->mNumPositionKeys));
+        //Ogre::LogManager::getSingleton().logMessage("rotation keys: " + Ogre::StringConverter::toString(node_anim->mNumRotationKeys));
+        //Ogre::LogManager::getSingleton().logMessage("scaling keys: " + Ogre::StringConverter::toString(node_anim->mNumScalingKeys));
+
+
         Ogre::String boneName = Ogre::String(node_anim->mNodeName.data);
 
         if(mSkeleton->hasBone(boneName))
@@ -576,48 +717,51 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
 
             for(int i = 0; i < node_anim->mNumPositionKeys; i++)
             {
-                keyframes[ node_anim->mPositionKeys[i].mTime ] = KeyframeData( &(node_anim->mPositionKeys[i]), NULL, NULL);
+                keyframes[ node_anim->mPositionKeys[i].mTime / mTicksPerSecond ] = KeyframeData( &(node_anim->mPositionKeys[i]), NULL, NULL);
             }
 
             for(int i = 0; i < node_anim->mNumRotationKeys; i++)
             {
-                KeyframesMap::iterator it = keyframes.find(node_anim->mRotationKeys[i].mTime);
+                KeyframesMap::iterator it = keyframes.find(node_anim->mRotationKeys[i].mTime / mTicksPerSecond);
                 if(it != keyframes.end())
                 {
                     boost::get<1>(it->second) = &(node_anim->mRotationKeys[i]);
                 }
                 else
                 {
-                    keyframes[ node_anim->mRotationKeys[i].mTime ] = KeyframeData( NULL, &(node_anim->mRotationKeys[i]), NULL );
+                    keyframes[ node_anim->mRotationKeys[i].mTime / mTicksPerSecond ] = KeyframeData( NULL, &(node_anim->mRotationKeys[i]), NULL );
                 }
             }
 
             for(int i = 0; i < node_anim->mNumScalingKeys; i++)
             {
-                KeyframesMap::iterator it = keyframes.find(node_anim->mScalingKeys[i].mTime);
+                KeyframesMap::iterator it = keyframes.find(node_anim->mScalingKeys[i].mTime / mTicksPerSecond);
                 if(it != keyframes.end())
                 {
                     boost::get<2>(it->second) = &(node_anim->mScalingKeys[i]);
                 }
                 else
                 {
-                    keyframes[ node_anim->mRotationKeys[i].mTime ] = KeyframeData( NULL, NULL, &(node_anim->mScalingKeys[i]) );
+                    keyframes[ node_anim->mRotationKeys[i].mTime / mTicksPerSecond ] = KeyframeData( NULL, NULL, &(node_anim->mScalingKeys[i]) );
                 }
             }
 
             KeyframesMap::iterator it = keyframes.begin();
             KeyframesMap::iterator it_end = keyframes.end();
+            int test = 0;
             for(it; it != it_end; ++it)
             {
-                if(it->first < cutTime)	// or should it be <=
+                test++;
+                if(test != 2 && it->first < cutTime) // or should it be <=
                 {
-                    aiVector3D aiTrans = getTranslate( node_anim, keyframes, it );
+                    aiVector3D aiTrans = getTranslate( node_anim, keyframes, it, mTicksPerSecond);
 
                     Ogre::Vector3 trans(aiTrans.x, aiTrans.y, aiTrans.z);
 
-                    aiQuaternion aiRot = getRotate(node_anim, keyframes, it);
+                    aiQuaternion aiRot = getRotate(node_anim, keyframes, it, mTicksPerSecond);
+
                     Ogre::Quaternion rot(aiRot.w, aiRot.x, aiRot.y, aiRot.z);
-                    Ogre::Vector3 scale(1,1,1);	//   ignore scale for now
+                    Ogre::Vector3 scale(1,1,1); // ignore scale for now
 
                     Ogre::Vector3 transCopy = trans;
 
@@ -625,7 +769,7 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
                     fullTransform.makeTransform(trans, scale, rot);
 
                     Ogre::Matrix4 poseTokey = defBonePoseInv * fullTransform;
-                    //poseTokey.decomposition(trans, scale, rot);
+                    poseTokey.decomposition(trans, scale, rot);
 
                     keyframe = track->createNodeKeyFrame(Ogre::Real(it->first));
 
@@ -648,21 +792,7 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
 
 }
 
-bool OpenAssetImport::IsSupportedExtension(QString extension)
-{
-    const char *openAssImpFileTypes[] = { ".3d", ".b3d", ".blend", ".dae", ".bvh", ".3ds", ".ase", ".obj", ".ply", ".dxf",
-                                          ".nff", ".smd", ".vta", ".mdl", ".md2", ".md3", ".mdc", ".md5mesh", ".x", ".q3o", ".q3s", ".raw", ".ac",
-                                          ".stl", ".irrmesh", ".irr", ".off", ".ter", ".mdl", ".hmp", ".ms3d", ".lwo", ".lws", ".lxo", ".csm",
-                                          ".ply", ".cob", ".scn" };
 
-    int numSuffixes = NUMELEMS(openAssImpFileTypes);
-
-    for(int i = 0;i < numSuffixes; ++i)
-        if (extension.contains(openAssImpFileTypes[i]))
-            return true;
-
-    return false;
-}
 
 void OpenAssetImport::markAllChildNodesAsNeeded(const aiNode *pNode)
 {
@@ -686,7 +816,9 @@ void OpenAssetImport::grabNodeNamesFromNode(const aiScene* mScene, const aiNode*
     bNode.isNeeded = false;
     boneMap.insert(std::pair<Ogre::String, boneNode>(Ogre::String(pNode->mName.data), bNode));
     mBoneNodesByName[pNode->mName.data] = pNode;
+
     Ogre::LogManager::getSingleton().logMessage("Node " + Ogre::String(pNode->mName.data) + " found.");
+
 
     // Traverse all child nodes of the current node instance
     for ( int childIdx=0; childIdx<pNode->mNumChildren; ++childIdx )
@@ -720,10 +852,53 @@ void OpenAssetImport::createBonesFromNode(const aiScene* mScene,  const aiNode *
         aiVector3D pos;
         aiVector3D scale;
 
+        /*
+        aiMatrix4x4 aiM = mNodeDerivedTransformByName.find(pNode->mName.data)->second;
+
+        const aiNode* parentNode = NULL;
+        {
+            boneMapType::iterator it = boneMap.find(pNode->mName.data);
+            if(it != boneMap.end())
+            {
+                parentNode = it->second.parent;
+            }
+        }
+        if(parentNode)
+        {
+            aiMatrix4x4 aiMParent = mNodeDerivedTransformByName.find(parentNode->mName.data)->second;
+            aiM = aiMParent.Inverse() * aiM;
+        }
+        */
+
         // above should be the same as
         aiMatrix4x4 aiM = pNode->mTransformation;
 
         aiM.Decompose(scale, rot, pos);
+
+
+        /*
+        // debug render
+        Ogre::SceneNode* sceneNode = NULL;
+        if(parentNode)
+        {
+            Ogre::SceneNode* parent = static_cast<Ogre::SceneNode*>(
+                GOOF::NodeUtils::GetNodeMatch(getSceneManager()->getRootSceneNode(), parentNode->mName.data, false));
+            assert(parent);
+            sceneNode = parent->createChildSceneNode(pNode->mName.data);
+        }
+        else
+        {
+            sceneNode = getSceneManager()->getRootSceneNode()->createChildSceneNode(pNode->mName.data);
+        }
+
+        sceneNode->setScale(scale.x, scale.y, scale.z);
+        sceneNode->setPosition(pos.x, pos.y, pos.z);
+        sceneNode->setOrientation(rot.w, rot.x, rot.y, rot.z);
+
+        sceneNode = sceneNode->createChildSceneNode();
+        sceneNode->setScale(0.01, 0.01, 0.01);
+        sceneNode->attachObject(getSceneManager()->createEntity("Box1m.mesh"));
+        */
 
         if (!aiM.IsIdentity())
         {
@@ -731,7 +906,9 @@ void OpenAssetImport::createBonesFromNode(const aiScene* mScene,  const aiNode *
             bone->setOrientation(rot.w, rot.x, rot.y, rot.z);
         }
 
+
         Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(msBoneCount) + ") Creating bone '" + Ogre::String(pNode->mName.data) + "'");
+
         msBoneCount++;
     }
     // Traverse all child nodes of the current node instance
@@ -793,7 +970,6 @@ bool OpenAssetImport::isNodeNeeded(const char* name)
 
 void OpenAssetImport::grabBoneNamesFromNode(const aiScene* mScene,  const aiNode *pNode)
 {
-    assert(pNode);
     meshNum++;
     if(pNode->mNumMeshes > 0)
     {
@@ -818,16 +994,12 @@ void OpenAssetImport::grabBoneNamesFromNode(const aiScene* mScene,  const aiNode
                         {
                             if(node->mName.data == pNode->mName.data)
                             {
-                                // flagNodeAsNeeded(node->mName.data);
-                                // Set mSkeletonRootNode to this node, which is the same node as the one holding the mesh
-                                //mSkeletonRootNode = node;
+                                flagNodeAsNeeded(node->mName.data);
                                 break;
                             }
                             if(node->mName.data == pNode->mParent->mName.data)
                             {
-                                //flagNodeAsNeeded(node->mName.data);
-                                // Set mSkeletonRootNode to this node, which is the parent node to the node holding the mesh
-                                //mSkeletonRootNode = node;
+                                flagNodeAsNeeded(node->mName.data);
                                 break;
                             }
 
@@ -853,6 +1025,7 @@ void OpenAssetImport::grabBoneNamesFromNode(const aiScene* mScene,  const aiNode
         grabBoneNamesFromNode(mScene, pChildNode);
     }
 }
+
 
 Ogre::String ReplaceSpaces(const Ogre::String& s)
 {
@@ -1245,6 +1418,7 @@ void OpenAssetImport::loadDataFromNode(const aiScene* mScene,  const aiNode *pNo
     }
 
     // Traverse all child nodes of the current node instance
+
     for ( int childIdx=0; childIdx<pNode->mNumChildren; childIdx++ )
     {
         const aiNode *pChildNode = pNode->mChildren[ childIdx ];

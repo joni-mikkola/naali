@@ -10,11 +10,7 @@
 #include <assimp/aiPostProcess.h>
 #include <map>
 #include <QString>
-//#include "GOOFSharedFrameworkData.h"
 
-#define NUMELEMS(x) (sizeof(x)/sizeof(x[0]))
-
-//TODO: only need a bool ?
 struct boneNode
 {
     aiNode* node;
@@ -22,7 +18,7 @@ struct boneNode
     bool isNeeded;
 };
 
-class OpenAssetImport //: public GOOF::SharedFrameworkData
+class OpenAssetImport
 {
 public:
     enum LoaderParams
@@ -41,17 +37,13 @@ public:
         LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS = 1<<3
     };
 
-
-    // customAnimationName is only applied if the skeleton only has one animation
-
-    bool convert(const Ogre::String& filename, bool generateMaterials, QString addr = "");
+    bool convert(const Ogre::String& filename, bool generateMaterials, QString addr = "", int index = -1);
 
     Ogre::MeshPtr mMesh;
     std::map<QString, QString> matList;
     std::vector<QString> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
     bool IsSupportedExtension(QString extension);
-
 
 private:
     const aiScene *scene;
@@ -73,7 +65,6 @@ private:
     void parseAnimation (const aiScene* mScene, int index, aiAnimation* anim);
     typedef std::map<Ogre::String, boneNode> boneMapType;
     boneMapType boneMap;
-    //aiNode* mSkeletonRootNode;
     int mLoaderParams;
     Ogre::String mBasename;
     Ogre::String mPath;
@@ -95,6 +86,10 @@ private:
     Ogre::SkeletonPtr mSkeleton;
 
     static int msBoneCount;
+
+    Ogre::Real mTicksPerSecond;
+    Ogre::Real mAnimationSpeedModifier;
+
 };
 
 #endif // __OpenAssetImport_h__
