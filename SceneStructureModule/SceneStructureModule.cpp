@@ -190,9 +190,9 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
 
                 // This parsing is added since some models added through 3DwhModule might have same modelname and hence the reference
                 // is added with directories, e.g. models/house1/models/house.dae
-                if (length > 4)
+                if (length > 3)
                 {
-                    QString output= "local://" + parsedRef[length-4] + "/" + parsedRef[length-3] + "/" + parsedRef[length-2] + "/";
+                    output= "local://" + parsedRef[length-4] + "/" + parsedRef[length-3] + "/" + parsedRef[length-2] + "/";
 
                     // Assume file is not added using G3dwhModule because it's not following assumed folder structure
                     if (parsedRef[length-4] != "models")
