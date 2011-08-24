@@ -329,10 +329,10 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     else
         transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
 
-    transform = scene->mRootNode->mTransformation;
+    //transform = scene->mRootNode->mTransformation;
 
 
-    transform.FromEulerAnglesXYZ(degreeToRadian(0), 0, degreeToRadian(0));
+    transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
 
     computeNodesDerivedTransform(scene, rootNode, transform);
 
