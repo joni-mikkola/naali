@@ -26,8 +26,10 @@
 #include <QString>
 #include <QStringList>
 #include <boost/tuple/tuple.hpp>
+#include <boost/filesystem.hpp>
 //#include "OgreXMLSkeletonSerializer.h"
 
+//#define USE_SKELETONS
 #define USE_SKELETONS
 
 static int meshNum = 0;
@@ -267,6 +269,9 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     if (index != -1)
         searchFromIndex = true;
 
+    std::string filu;
+    filu = boost::filesystem::path(addr.toStdString()).stem();
+
 
 
     unsigned int pFlags = 0
@@ -299,7 +304,10 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     if (scene->HasAnimations())
         getBasePose(scene, scene->mRootNode);
 
+
     grabNodeNamesFromNode(scene, scene->mRootNode);
+
+    
     //
 #ifdef USE_SKELETONS
     grabBoneNamesFromNode(scene, scene->mRootNode);
@@ -324,7 +332,11 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
     //transform = scene->mRootNode->mTransformation;
 
+
+    transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
+
     computeNodesDerivedTransform(scene, rootNode, transform);
+
 
 #ifdef USE_SKELETONS
     if(mBonesByName.size())
@@ -346,7 +358,11 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     }
 #endif
 
+    filu = QString(filu.c_str()).remove(filu.find_last_of('.'),4).toStdString();
+
     loadDataFromNode(scene, rootNode, mPath);
+
+
 
     Ogre::LogManager::getSingleton().logMessage("*** Finished loading ass file ***");
     Assimp::DefaultLogger::kill();
@@ -363,7 +379,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
 
         Ogre::SkeletonSerializer binSer;
-        binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/boy.skeleton");
+        //binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/" + filu + ".skeleton");
     }
 
     Ogre::MeshSerializer meshSer;
@@ -372,7 +388,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         Ogre::MeshPtr mMesh = *it;
         if(mBonesByName.size())
         {
-            mMesh->setSkeletonName("boy.skeleton");
+            mMesh->setSkeletonName(filu + ".skeleton");
         }
 
         Ogre::Mesh::SubMeshIterator smIt = mMesh->getSubMeshIterator();
@@ -399,7 +415,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 }
             }
         }
-        meshSer.exportMesh(mMesh.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/boy.mesh");
+        //meshSer.exportMesh(mMesh.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/boy.mesh");
 
     }
 #endif
@@ -455,8 +471,10 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
     }
 
-    //Scale mesh scale (xyz) below 10 units
-    linearScaleMesh(mMesh, 10);
+    //Scale mesh scale (xyz) below 10 units. Do not scale if scene contains animation
+    //otherwise skeleton data focks up
+    if (!scene->HasAnimations())
+        linearScaleMesh(mMesh, 10);
 
     mMeshes.clear();
     mMaterialCode = "";
@@ -748,11 +766,10 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
 
             KeyframesMap::iterator it = keyframes.begin();
             KeyframesMap::iterator it_end = keyframes.end();
-            int test = 0;
+
             for(it; it != it_end; ++it)
             {
-                test++;
-                if(test != 2 && it->first < cutTime) // or should it be <=
+                if(it->first < cutTime) // or should it be <=
                 {
                     aiVector3D aiTrans = getTranslate( node_anim, keyframes, it, mTicksPerSecond);
 
@@ -1149,6 +1166,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
                 parsedReference.append("." + format);
 
                 QString modelFile = addr.mid(addr.lastIndexOf('/') + 1, addr.length() - addr.lastIndexOf('/'));
+
                 modelFile = modelFile.left(modelFile.lastIndexOf('.'));
                 parsedReference.insert(0, modelFile.toStdString());
 
@@ -1425,5 +1443,3 @@ void OpenAssetImport::loadDataFromNode(const aiScene* mScene,  const aiNode *pNo
         loadDataFromNode(mScene, pChildNode, mDir);
     }
 }
-
-
