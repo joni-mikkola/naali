@@ -15,7 +15,9 @@
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QNetworkRequest>
+
 #include <QDebug>
+
 
 #include "SceneStructureModule.h"
 #include "LoggingFunctions.h"
@@ -54,7 +56,7 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPat
     ui->gridLayout->removeWidget(ui->warehouseView);
     ui->gridLayout->addWidget(ui->warehouseView,1,0,0);
 
-    ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+    ui->warehouseView->setUrl(QUrl("http://sketchup.google.com/3dwarehouse/"));
     ui->warehouseView->show();
 
     multiSelectionList.clear();
@@ -131,6 +133,9 @@ G3dwhDialog::G3dwhDialog(Foundation::Framework * framework, std::string modelPat
     connect(ui->warehouseView, SIGNAL(urlChanged(QUrl)), this, SLOT(urlChanged(QUrl)));
     connect(ui->warehouseView->page(), SIGNAL(linkHovered(QString,QString,QString)), SLOT(linkHovered(QString,QString,QString)));
 
+    connect(ui->warehouseView->pageAction(QWebPage::Back), SIGNAL(triggered()), this, SLOT(backActionTriggered()));
+    connect(ui->warehouseView->pageAction(QWebPage::Forward), SIGNAL(triggered()), this, SLOT(forwardActionTriggered()));
+
 }
 
 G3dwhDialog::~G3dwhDialog()
@@ -191,58 +196,20 @@ bool G3dwhDialog::eventFilter(QObject *o, QEvent *e)
         QMouseEvent *mouseEvent = static_cast<QMouseEvent *>(e);
         if (mouseEvent->button() == Qt::XButton1)
         {
-            //Check which tab is open and check where the previous page was from.
-            //Change tab if needed and load the previous page.
-            if(tabBar->currentIndex()==0)
-            {
-                if(ui->warehouseView->page()->history()->backItem().url().toString().contains("google"))
-                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
-                else
-                {
-                    tabBar->setCurrentIndex(1);
-                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
-                }
-            }else if(tabBar->currentIndex()==1)
-            {
-                if(ui->warehouseView->page()->history()->backItem().url().toString().contains("ourbricks"))
-                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
-                else
-                {
-                    tabBar->setCurrentIndex(0);
-                    ui->warehouseView->triggerPageAction(QWebPage::Back, false);
-                }
-            }
+            ui->warehouseView->pageAction(QWebPage::Back)->trigger();
 
             mouseEvent->accept();
             return true;
         }
+
         if (mouseEvent->button() == Qt::XButton2)
         {
-            //Check which tab is open and check where the next page was from.
-            //Change tab if needed and load the next page.
-            if(tabBar->currentIndex()==0)
-            {
-                if(ui->warehouseView->page()->history()->forwardItem().url().toString().contains("google"))
-                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
-                else
-                {
-                    tabBar->setCurrentIndex(1);
-                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
-                }
-            }else if(tabBar->currentIndex()==1)
-            {
-                if(ui->warehouseView->page()->history()->forwardItem().url().toString().contains("ourbricks"))
-                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
-                else
-                {
-                    tabBar->setCurrentIndex(0);
-                    ui->warehouseView->triggerPageAction(QWebPage::Forward, false);
-                }
-            }
+            ui->warehouseView->pageAction(QWebPage::Forward)->trigger();
 
             mouseEvent->accept();
             return true;
         }
+
     }
     return false;
 }
@@ -253,8 +220,15 @@ void G3dwhDialog::on_downloadList_itemClicked(QListWidgetItem *item)
 {
     if(multiSelection)
     {
-        multiSelectionList.append("models/"+item->text());
-        loadHtmlPath(modelDir+"/"+multiSelectionList.last());
+        if(!multiSelectionList.contains("models/"+item->text()))
+        {
+            multiSelectionList.append("models/"+item->text());
+            loadHtmlPath(modelDir+"/"+multiSelectionList.last());
+        }
+        else
+        {
+            multiSelectionList.removeAt(multiSelectionList.indexOf("models/"+item->text()));
+        }
     }
     else
     {
@@ -327,7 +301,6 @@ void G3dwhDialog::removeButton_Clicked()
         {
             QByteArray fileInput = htmlSources.readLine();
             QString line = fileInput;
-            qDebug()<<modelFileName;
             if (!line.contains(modelFileName,Qt::CaseSensitive))
             {
                 fileContent.append(line);
@@ -462,7 +435,6 @@ void G3dwhDialog::checkDirStructure(QString pathToDir,QString &daeRef)
                 if(dirContent.contains(imageFilter))
                 {
                     QFile imageFile(dirContent);
-                    qDebug()<<imageFile.fileName();
                     imageFile.rename(targetDirName+"images/"+dirIterator.fileName());
                 }
             }
@@ -501,7 +473,6 @@ void G3dwhDialog::downloadFinished()
     if( downloadAborted == false )
     {
         QFile fileTest(modelFileName);
-        qDebug()<<fileTest.fileName();
         int index=0;
 
         while(fileTest.exists())
@@ -536,12 +507,15 @@ void G3dwhDialog::urlChanged(QUrl url)
     QString newUrl=url.toString();
     if(!newUrl.contains("sketchup.google.com/3dwarehouse") && !newUrl.contains("ourbricks.com"))
     {
-        qDebug()<<"blaa";
         if(tabBar->currentIndex()==0)
+        {
             ui->warehouseView->load(QUrl("http://sketchup.google.com/3dwarehouse/"));
+        }
 
         if(tabBar->currentIndex()==1)
+        {
             ui->warehouseView->load(QUrl("http://ourbricks.com"));
+        }
     }
 }
 
@@ -577,13 +551,53 @@ void G3dwhDialog::loadHtmlPath(QString file)
             else if(newUrl.contains("ourbricks"))
                 tabBar->setCurrentIndex(1);
 
-            qDebug()<<"index:"<<tabBar->currentIndex();
-
             ui->warehouseView->load(QUrl(newUrl));
 
         }
     }
 
+}
+
+void G3dwhDialog::backActionTriggered()
+{
+    //Check which tab is open and move in history based on that information.
+    if(ui->warehouseView->page()->history()->currentItemIndex()!=0)
+    {
+        if(tabBar->currentIndex()==0)
+        {
+            if(!ui->warehouseView->page()->history()->currentItem().url().toString().contains("google"))
+            {
+                ui->warehouseView->pageAction(QWebPage::Back)->trigger();
+            }
+        }else if(tabBar->currentIndex()==1)
+        {
+            if(!ui->warehouseView->page()->history()->currentItem().url().toString().contains("ourbricks"))
+            {
+                ui->warehouseView->pageAction(QWebPage::Back)->trigger();
+            }
+        }
+    }
+}
+
+void G3dwhDialog::forwardActionTriggered()
+{
+    //Check which tab is open and move in history based on that information.
+    if(ui->warehouseView->page()->history()->currentItemIndex()<ui->warehouseView->page()->history()->count()+1)
+    {
+        if(tabBar->currentIndex()==0)
+        {
+            if(!ui->warehouseView->page()->history()->currentItem().url().toString().contains("google"))
+            {
+                ui->warehouseView->pageAction(QWebPage::Forward)->trigger();
+            }
+        }else if(tabBar->currentIndex()==1)
+        {
+            if(!ui->warehouseView->page()->history()->currentItem().url().toString().contains("ourbricks"))
+            {
+                ui->warehouseView->pageAction(QWebPage::Forward)->trigger();
+            }
+        }
+    }
 }
 
 void G3dwhDialog::loadFinished()
@@ -604,10 +618,8 @@ void G3dwhDialog::readMetaData()
 {
     QNetworkReply *reply = ((QNetworkReply*)sender());
     QString dataType=reply->header(QNetworkRequest::ContentTypeHeader).toString();
-    qDebug()<<dataType;
     if (dataType != "application/zip" && dataType !="application/octet-stream")
     {
-        qDebug()<<dataType;
         downloadAborted=true;
         reply->close();
         infoLabel->setText("Wrong format, select Collada if available.");
@@ -616,11 +628,79 @@ void G3dwhDialog::readMetaData()
     {
         QStringList titleList = ui->warehouseView->title().split(" by");
         QStringList parseList = titleList[0].split(" ");
-        modelFileName=modelDir+"/models/"+parseList.join("_")+".zip";
+        modelFileName.clear();
+        modelFileName=formatFileName(modelDir+"/models/"+parseList.join("_")+".zip");
+        qDebug()<<modelFileName;
         modelFileName.replace(",","");
         htmlSource = ui->warehouseView->url().toString();
 
     }
+}
+
+QString G3dwhDialog::formatFileName(QString toFormat)
+{
+    qDebug()<<toFormat;
+    QString formattedString = toFormat;
+    //!"#$%&'()*+,:;<=>?@ to _
+    formattedString.replace(QRegExp("[\x0021-\x002B\x003A-\x0040]"),"_");
+    //qDebug()<<formattedString.replace(QRegExp("[\x00E0-\x00E6\x0101\x0103\x0105]"),"a");
+    //àáâãäåæÀÁÂÃÄÅÆ to a
+    formattedString.replace(QRegExp("[\x00E0-\x00E6\x00C0-\x00C6]"),"a");
+    //èéêëÈÉÊË to e
+    formattedString.replace(QRegExp("[\x00E8-\x00EB\x00C8-\x00CB]"),"e");
+    //ÌÍÎÏìíîï to i
+    formattedString.replace(QRegExp("[\x00EC-\x00EF\x00CC-\x00CF]"),"i");
+    //òóôõöøÒÓÔÕÖØ to o
+    formattedString.replace(QRegExp("[\x00D2-\x00D6\x00F2-\x00F6\x00D8\x00F8\x009C]"),"o");
+    //ùúûüÙÚÛÜ to u
+    formattedString.replace(QRegExp("[\x00D9-\x00DC\x00F9-\x00FC]"),"u");
+    //ýÝ to y
+    formattedString.replace(QRegExp("[\x00DD\x00FD]"),"y");
+    //formattedString.replace(QString::fromWCharArray(L"\u123B"),"s");
+    QVector<uint> ucsVector = formattedString.toUcs4();
+    QList<uint> replaceableChars;
+    //282-283 replace with e
+    //323-324 replace with n
+    //346-353 replace with s
+    //374-375 replace with y
+    //381-382 replace with z
+    replaceableChars<<282<<283<<323<<324<<346<<347<<352<<353<<374<<375<<381<<382;
+
+    for(int i=0;i<replaceableChars.count();i++)
+    {
+        for(int ii=0;ii<ucsVector.count();ii++)
+        {
+            if(ucsVector.value(ii)==replaceableChars.value(i))
+            {
+                unsigned int tmpValue = replaceableChars.value(i);
+                qDebug()<<tmpValue;
+                if(tmpValue==282 || tmpValue==283)
+                {
+                    ucsVector[ii]=101;
+                }
+                else if(tmpValue==323 || tmpValue==324)
+                {
+                    ucsVector[ii]=110;
+                }
+                else if(tmpValue>=346 && tmpValue<=353)
+                {
+                    ucsVector[ii]=115;
+                }
+                else if(tmpValue==374 || tmpValue==375)
+                {
+                    ucsVector[ii]=121;
+                }
+                else if(tmpValue==381 || tmpValue==382)
+                {
+                    ucsVector[ii]=122;
+                }
+            }
+        }
+    }
+    formattedString.clear();
+    formattedString=QString::fromUcs4(ucsVector.data(),ucsVector.count());
+    ucsVector.clear();
+    return formattedString;
 }
 
 //Update list of downloaded models
