@@ -30,6 +30,7 @@
 //#include "OgreXMLSkeletonSerializer.h"
 
 //#define USE_SKELETONS
+#define USE_SKELETONS
 
 static int meshNum = 0;
 
@@ -1017,6 +1018,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
                 parsedReference.append("." + format);
 
                 QString modelFile = addr.mid(addr.lastIndexOf('/') + 1, addr.length() - addr.lastIndexOf('/'));
+
                 modelFile = modelFile.left(modelFile.lastIndexOf('.'));
                 parsedReference.insert(0, modelFile.toStdString());
 

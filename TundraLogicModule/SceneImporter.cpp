@@ -28,6 +28,7 @@ DEFINE_POCO_LOGGING_FUNCTIONS("SceneImporter")
 #include <QDomDocument>
 #include <QFile>
 #include <QDir>
+#include <QDebug>
 
 namespace fs = boost::filesystem;
 
@@ -52,10 +53,8 @@ Scene::EntityPtr SceneImporter::ImportMesh(const std::string& filename, std::str
         LogError("Null scene for mesh import");
         return Scene::EntityPtr();
     }
-
     boost::filesystem::path path(filename);
     std::string meshleafname = path.leaf();
-
     QStringList material_names;
     QString skeleton_name;
     if (inspect)

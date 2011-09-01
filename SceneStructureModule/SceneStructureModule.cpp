@@ -37,9 +37,10 @@
 #include <QToolTip>
 #include <QCursor>
 
+#include <QDebug>
+
 #include <OgreEntity.h>
 #include <OgreMesh.h>
-
 DEFINE_POCO_LOGGING_FUNCTIONS("SceneStructure");
 
 //#include <OgreCamera.h>
@@ -103,6 +104,7 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QString &f
 QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringList &filenames, Vector3df worldPos, const SceneDesc &desc, bool clearScene)
 {
     QList<Scene::Entity *> ret;
+
 
     const Scene::ScenePtr &scene = GetFramework()->Scene()->GetDefaultScene();
     if (!scene)
@@ -187,7 +189,6 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
                 QStringList parsedRef = filename.split("/");
                 QString output= "local://";
                 int length=parsedRef.length();
-
                 // This parsing is added since some models added through 3DwhModule might have same modelname and hence the reference
                 // is added with directories, e.g. models/house1/models/house.dae
                 if (length > 3)
@@ -198,7 +199,6 @@ QList<Scene::Entity *> SceneStructureModule::InstantiateContent(const QStringLis
                     if (parsedRef[length-4] != "models")
                         output = "local://";
                 }
-
                 Transform worldtransform;
                 Scene::EntityPtr entity = sceneimporter.ImportMesh(filename.toStdString(), dirname, worldtransform,
                                  std::string(), output, AttributeChange::Default, false, "");
