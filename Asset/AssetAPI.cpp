@@ -92,7 +92,7 @@ AssetStoragePtr AssetAPI::AddAssetStorage(const QString &url, const QString &nam
     if (!provider)
     {
         LogError("AssetAPI::AddAssetStorage: Could not find a provider for the new storage location " + url);
-        return newStorage; 
+        return newStorage;
     }
 
     // Inspect if a storage already exists for this url and name combination
@@ -107,7 +107,7 @@ AssetStoragePtr AssetAPI::AddAssetStorage(const QString &url, const QString &nam
             LogDebug("AssetAPI::AddAssetStorage: Found existing storage with same url and name, returning the existing storage.");
             break;
         }
-        // Reset so the last valid provider wont be used! 
+        // Reset so the last valid provider wont be used!
         newStorage = AssetStoragePtr();
     }
 
@@ -235,7 +235,7 @@ QString AssetAPI::ExtractFilenameFromAssetRef(QString ref)
 QString AssetAPI::ExtractAssetStorageFromAssetRef(QString ref)
 {
 // We're assuming the following here.
-//    assert(!ref.contains("://")); 
+//    assert(!ref.contains("://"));
 
     ref = ref.trimmed();
     if (!ref.contains(":"))
@@ -276,7 +276,7 @@ QString AssetAPI::RecursiveFindFile(QString basePath, QString filename)
     {
     }
 
-    return "";    
+    return "";
 }
 
 AssetPtr AssetAPI::CreateAssetFromFile(QString assetType, QString assetFile)
@@ -536,13 +536,13 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
 
         // Check that the requested types were the same. Don't know what to do if they differ, so only print a warning if so.
         if (!assetType.isEmpty() && !transfer->assetType.isEmpty() && assetType != transfer->assetType)
-            LogWarning("AssetAPI::RequestAsset: Asset \"" + assetRef + "\" first requested by type " + transfer->assetType + 
+            LogWarning("AssetAPI::RequestAsset: Asset \"" + assetRef + "\" first requested by type " + transfer->assetType +
             ", but now requested by type " + assetType + ".");
 
         return transfer;
     }
 
-    // Check if we've already downloaded this asset before and it already is loaded in the system. We never reload an asset we've downloaded before, unless the 
+    // Check if we've already downloaded this asset before and it already is loaded in the system. We never reload an asset we've downloaded before, unless the
     // client explicitly forces so, or if we get a change notification signal from the source asset provider telling the asset was changed.
     AssetMap::iterator iter2 = assets.find(assetRef);
     if (iter2 != assets.end())
@@ -554,7 +554,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         // The asset was already downloaded. Generate a 'virtual asset transfer' and return it to the client.
         AssetTransferPtr transfer = AssetTransferPtr(new IAssetTransfer());
         transfer->asset = iter2->second; // For 'normal' requests, the asset ptr is zero, but for these virtual requests, we can already fill the asset here.
-        transfer->source.ref = assetRef;        
+        transfer->source.ref = assetRef;
         transfer->assetType = assetType;
         transfer->provider = transfer->asset->GetAssetProvider();
         transfer->storage = transfer->asset->GetAssetStorage();
@@ -604,7 +604,7 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         transfer->storage = AssetStorageWeakPtr(); // Note: Unfortunately when we load an asset from cache, we don't get the information about which storage it's supposed to come from.
         transfer->provider = provider;
         transfer->SetCachingBehavior(false, assetFileInCache);
-        LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider."); 
+        LogDebug("AssetAPI::RequestAsset: Loaded asset \"" + assetRef + "\" from disk cache instead of having to use asset provider.");
         readyTransfers.push_back(transfer); // There is no assetprovider that will "push" the AssetTransferCompleted call. We have to remember to do it ourselves.
     }
     else // Can't find the asset in cache. Do a real request from the asset provider.
@@ -891,23 +891,20 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 #ifdef ASSIMP_ENABLED
     if (IsAssimpSupported(transfer->asset->DiskSource()))
     {
-        QString tmpString = transfer->asset->DiskSource();
-
         OpenAssetImport import;
         bool success;
 
-        QString fileLocation = transfer->asset->DiskSource();
-        QString parsedRef = fileLocation.remove(0, fileLocation.lastIndexOf("/") + 1);
+        QString filePath = transfer->asset->DiskSource();
+        QString parsedRef = filePath.mid(filePath.lastIndexOf("/") + 1, filePath.length());
 
         if (parsedRef.startsWith("http"))
-            success = import.convert(transfer->asset->DiskSource().toStdString().c_str(), true, parsedRef);
+            success = import.convert(filePath.toStdString().c_str(), true, parsedRef);
         else
-            success = import.convert(transfer->asset->DiskSource().toStdString().c_str(), true, transfer->asset->DiskSource().toStdString().c_str());
+            success = import.convert(filePath.toStdString().c_str(), true, filePath.toStdString().c_str());
 
         if (!success)
         {
-            // OpenAssetImport also notifies if load fails
-            LogError("AssImp failed to load file " + fileLocation.toStdString());
+            LogError("AssImp failed to load file " + filePath.toStdString());
             return;
         }
 
@@ -919,7 +916,7 @@ void AssetAPI::AssetTransferCompleted(IAssetTransfer *transfer_)
 
         Ogre::MeshSerializer serializer;
         QString tempFilename = "tmp.mesh";
-        serializer.exportMesh(import.mMesh.get(), tempFilename.toStdString());
+        serializer.exportMesh(import.GetMesh(), tempFilename.toStdString());
         LoadFileToVector(tempFilename.toStdString().c_str(), transfer->rawAssetData);
         QFile::remove(tempFilename); // Delete the temporary file we used for serialization.
     }
@@ -1033,8 +1030,8 @@ void AssetAPI::AssetUploadTransferCompleted(IAssetUploadTransfer *uploadTransfer
 
     QString assetRef = uploadTransfer->AssetRef();
     // We've completed an asset upload transfer. See if there is an asset download transfer that is waiting
-    // for this upload to complete. 
-    
+    // for this upload to complete.
+
     // Before issuing a request, clear our cache of this data.
     /// \note We could actually update our cache with the same version of the asset that we just uploaded,
     /// to avoid downloading what we just uploaded. That can be implemented later.
@@ -1078,7 +1075,7 @@ void AssetAPI::AssetDependenciesCompleted(AssetTransferPtr transfer)
     // This asset is now completely finished, and all its dependencies have been loaded.
     if (transfer->asset)
         transfer->asset->EmitLoaded();
-    
+
     pendingDownloadRequests.erase(transfer->source.ref);
 }
 
@@ -1342,9 +1339,9 @@ QString GetResourceTypeFromResourceFileName(const char *name)
         return "QtUiFile";
 
     // \todo Dont hadcode these if the extension some day change!
-    // cTundraBinFileExtension and cTundraXmlFileExtension are defined 
+    // cTundraBinFileExtension and cTundraXmlFileExtension are defined
     // in SceneStructureModules .h files, move to core?
-    if (file.endsWith(".xml") || file.endsWith(".txml") || file.endsWith(".tbin")) 
+    if (file.endsWith(".xml") || file.endsWith(".txml") || file.endsWith(".tbin"))
         return "Binary";
 
     // Unknown type, return Binray type.
@@ -1367,7 +1364,7 @@ bool CopyAssetFile(const char *sourceFile, const char *destFile)
 
     QByteArray bytes = asset_in.readAll();
     asset_in.close();
-    
+
     QFile asset_out(destFile);
     if (!asset_out.open(QFile::WriteOnly))
     {
@@ -1377,7 +1374,7 @@ bool CopyAssetFile(const char *sourceFile, const char *destFile)
 
     asset_out.write(bytes);
     asset_out.close();
-    
+
     return true;
 }
 
@@ -1395,6 +1392,6 @@ bool SaveAssetFromMemoryToFile(const u8 *data, size_t numBytes, const char *dest
 
     asset_out.write((const char *)data, numBytes);
     asset_out.close();
-    
+
     return true;
 }

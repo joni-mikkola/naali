@@ -123,7 +123,7 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
                     points[1] *= minCoefficient;
                     points[2] *= minCoefficient;
                 }
-                
+
                 vbuf->unlock();
             }
         }
@@ -133,6 +133,104 @@ void OpenAssetImport::linearScaleMesh(Ogre::MeshPtr mesh, int targetSize)
     mAAB.scale(scale);
 
     mMesh->_setBounds(mAAB);
+}
+
+aiMatrix4x4 updateAnimationFunc(const aiScene * scene, aiNodeAnim * pchannel, Ogre::Real val, float & ticks, aiMatrix4x4 & mat)
+{
+
+    // walking animation is found from element 0
+    const aiAnimation* mAnim = scene->mAnimations[0];
+    double currentTime = val;
+    currentTime = fmod( val * 1, mAnim->mDuration);
+    ticks = fmod( val * 1, mAnim->mDuration);
+
+    // calculate the transformations for each animation channel
+
+    // get the bone/node which is affected by this animation channel
+    const aiNodeAnim* channel = pchannel;
+
+    // ******** Position *****
+    aiVector3D presentPosition( 0, 0, 0);
+    if( channel->mNumPositionKeys > 0)
+    {
+        // Look for present frame number. Search from last position if time is after the last time, else from beginning
+        // Should be much quicker than always looking from start for the average use case.
+        unsigned int frame = 0;
+        while( frame < channel->mNumPositionKeys - 1)
+        {
+            if( currentTime < channel->mPositionKeys[frame+1].mTime)
+                break;
+            frame++;
+        }
+
+        // interpolate between this frame's value and next frame's value
+        unsigned int nextFrame = (frame + 1) % channel->mNumPositionKeys;
+        const aiVectorKey& key = channel->mPositionKeys[frame];
+        const aiVectorKey& nextKey = channel->mPositionKeys[nextFrame];
+        double diffTime = nextKey.mTime - key.mTime;
+        if( diffTime < 0.0)
+            diffTime += mAnim->mDuration;
+        if( diffTime > 0)
+        {
+            float factor = float( (currentTime - key.mTime) / diffTime);
+            presentPosition = key.mValue + (nextKey.mValue - key.mValue) * factor;
+        } else
+        {
+            presentPosition = key.mValue;
+        }
+    }
+
+    // ******** Rotation *********
+    aiQuaternion presentRotation( 1, 0, 0, 0);
+    if( channel->mNumRotationKeys > 0)
+    {
+        unsigned int frame = 0;
+        while( frame < channel->mNumRotationKeys - 1)
+        {
+            if( currentTime < channel->mRotationKeys[frame+1].mTime)
+                break;
+            frame++;
+        }
+
+        // interpolate between this frame's value and next frame's value
+        unsigned int nextFrame = (frame + 1) % channel->mNumRotationKeys;
+        const aiQuatKey& key = channel->mRotationKeys[frame];
+        const aiQuatKey& nextKey = channel->mRotationKeys[nextFrame];
+        double diffTime = nextKey.mTime - key.mTime;
+        if( diffTime < 0.0)
+            diffTime += mAnim->mDuration;
+        if( diffTime > 0)
+        {
+            float factor = float( (currentTime - key.mTime) / diffTime);
+            aiQuaternion::Interpolate( presentRotation, key.mValue, nextKey.mValue, factor);
+        } else
+        {
+            presentRotation = key.mValue;
+        }
+    }
+
+    // ******** Scaling **********
+    aiVector3D presentScaling( 1, 1, 1);
+    if( channel->mNumScalingKeys > 0)
+    {
+        unsigned int frame = 0;
+        while( frame < channel->mNumScalingKeys - 1)
+        {
+            if( currentTime < channel->mScalingKeys[frame+1].mTime)
+                break;
+            frame++;
+        }
+
+        presentScaling = channel->mScalingKeys[frame].mValue;
+    }
+
+    // build a transformation matrix from it
+    mat = aiMatrix4x4( presentRotation.GetMatrix());
+
+    mat.a1 *= presentScaling.x; mat.b1 *= presentScaling.x; mat.c1 *= presentScaling.x;
+    mat.a2 *= presentScaling.y; mat.b2 *= presentScaling.y; mat.c2 *= presentScaling.y;
+    mat.a3 *= presentScaling.z; mat.b3 *= presentScaling.z; mat.c3 *= presentScaling.z;
+    mat.a4 = presentPosition.x; mat.b4 = presentPosition.y; mat.c4 = presentPosition.z;
 }
 
 void getBasePose(const aiScene * sc, const aiNode * nd)
@@ -192,7 +290,6 @@ void getBasePose(const aiScene * sc, const aiNode * nd)
 
                 resultPos[vertexId] += (posTrafo * srcPos) * weight.mWeight;
                 resultNorm[vertexId] += (normTrafo * srcNorm)* weight.mWeight;
-
             }
         }
 
@@ -227,7 +324,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     {
         mNodeDerivedTransformByName.clear();
     }
-    
+
     Assimp::DefaultLogger::create("asslogger.log",Assimp::Logger::VERBOSE);
 
     //Ogre::LogManager::getSingleton().logMessage("Filename " + filename);
@@ -271,8 +368,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     std::string filu;
     filu = boost::filesystem::path(addr.toStdString()).stem();
 
-
-
     unsigned int pFlags = 0
                           | aiProcess_SplitLargeMeshes
                           | aiProcess_FindInvalidData
@@ -280,15 +375,15 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                           | aiProcess_Triangulate
                           | aiProcess_FlipUVs
                           | aiProcess_JoinIdenticalVertices
-                          //| aiProcess_PreTransformVertices
+                          | aiProcess_PreTransformVertices
                           | aiProcess_OptimizeMeshes
                           | aiProcess_RemoveRedundantMaterials
                           | aiProcess_ImproveCacheLocality
                           | aiProcess_LimitBoneWeights
                           | aiProcess_SortByPType;
 
-    if (!searchFromIndex)
-        pFlags = pFlags | aiProcess_PreTransformVertices;
+    /*if (!searchFromIndex)
+        pFlags = pFlags | aiProcess_PreTransformVertices;*/
 
     scene = importer.ReadFile(filename, pFlags);
 
@@ -303,19 +398,15 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     if (scene->HasAnimations())
         getBasePose(scene, scene->mRootNode);
 
-
     grabNodeNamesFromNode(scene, scene->mRootNode);
 
-    
+
     //
 #ifdef USE_SKELETONS
     grabBoneNamesFromNode(scene, scene->mRootNode);
 #endif
 
-    aiNode *rootNode = scene->mRootNode;
-    aiMatrix4x4 transform;
-
-    if (searchFromIndex)
+    /*if (searchFromIndex)
     {
         std::vector<QString> mainNodes = GetMeshNodes(scene, scene->mRootNode);
         if (mainNodes.size() > 1 && mainNodes.size() <= index)
@@ -327,14 +418,14 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             Ogre::LogManager::getSingleton().logMessage("Index " + Ogre::StringConverter::toString(index) + " not found! Loading whole mesh!");
     }
     else
-        transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
+        transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));*/
 
-    //transform = scene->mRootNode->mTransformation;
+    aiMatrix4x4 transform = scene->mRootNode->mTransformation;
 
 
     transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
 
-    computeNodesDerivedTransform(scene, rootNode, transform);
+    computeNodesDerivedTransform(scene, scene->mRootNode, transform);
 
 
 #ifdef USE_SKELETONS
@@ -359,13 +450,13 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
     filu = QString(filu.c_str()).remove(filu.find_last_of('.'),4).toStdString();
 
-    loadDataFromNode(scene, rootNode, mPath);
+    loadDataFromNode(scene, scene->mRootNode, mPath);
 
 
 
     Ogre::LogManager::getSingleton().logMessage("*** Finished loading ass file ***");
     Assimp::DefaultLogger::kill();
-    
+
 #ifdef USE_SKELETONS
     if(!mSkeleton.isNull())
     {
@@ -378,7 +469,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
 
         Ogre::SkeletonSerializer binSer;
-        //binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/" + filu + ".skeleton");
+        binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/" + filu + ".skeleton");
     }
 
     Ogre::MeshSerializer meshSer;
@@ -414,8 +505,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 }
             }
         }
-        //meshSer.exportMesh(mMesh.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/boy.mesh");
-
     }
 #endif
 
@@ -491,138 +580,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     return true;
 }
 
-typedef boost::tuple< aiVectorKey*, aiQuatKey*, aiVectorKey* > KeyframeData;
-typedef std::map< float, KeyframeData > KeyframesMap;
-
-template <int v>
-        struct Int2Type
-{
-    enum { value = v };
-};
-
-// T should be a Loki::Int2Type<>
-template< typename T > void GetInterpolationIterators(KeyframesMap& keyframes,
-KeyframesMap::iterator it,
-KeyframesMap::reverse_iterator& front,
-KeyframesMap::iterator& back)
-{
-    front = KeyframesMap::reverse_iterator(it);
-
-    front++;
-    for(front; front != keyframes.rend(); front++)
-    {
-        if(boost::get< T::value >(front->second) != NULL)
-        {
-            break;
-        }
-    }
-
-    back = it;
-    back++;
-    for(back; back != keyframes.end(); back++)
-    {
-        if(boost::get< T::value >(back->second) != NULL)
-        {
-            break;
-        }
-    }
-}
-
-aiVector3D getTranslate(aiNodeAnim* node_anim, KeyframesMap& keyframes, KeyframesMap::iterator it, Ogre::Real ticksPerSecond)
-{
-    aiVectorKey* translateKey = boost::get<0>(it->second);
-    aiVector3D vect;
-    if(translateKey)
-    {
-        vect = translateKey->mValue;
-    }
-    else
-    {
-        KeyframesMap::reverse_iterator front;
-        KeyframesMap::iterator back;
-
-
-        GetInterpolationIterators< Int2Type<0> > (keyframes, it, front, back);
-
-        KeyframesMap::reverse_iterator rend = keyframes.rend();
-        KeyframesMap::iterator end = keyframes.end();
-        aiVectorKey* frontKey = NULL;
-        aiVectorKey* backKey = NULL;
-
-        if(front != rend)
-            frontKey = boost::get<0>(front->second);
-
-        if(back != end)
-            backKey = boost::get<0>(back->second);
-
-        // got 2 keys can interpolate
-        if(frontKey && backKey)
-        {
-            float prop = (it->first - frontKey->mTime) / (backKey->mTime - frontKey->mTime);
-            prop /= ticksPerSecond;
-            vect = ((backKey->mValue - frontKey->mValue) * prop) + frontKey->mValue;
-        }
-
-        else if(frontKey)
-        {
-            vect = frontKey->mValue;
-        }
-        else if(backKey)
-        {
-            vect = backKey->mValue;
-        }
-    }
-
-    return vect;
-}
-
-aiQuaternion getRotate(aiNodeAnim* node_anim, KeyframesMap& keyframes, KeyframesMap::iterator it, Ogre::Real ticksPerSecond)
-{
-    aiQuatKey* rotationKey = boost::get<1>(it->second);
-    aiQuaternion rot;
-    if(rotationKey)
-    {
-        rot = rotationKey->mValue;
-    }
-    else
-    {
-        KeyframesMap::reverse_iterator front;
-        KeyframesMap::iterator back;
-
-        GetInterpolationIterators< Int2Type<1> > (keyframes, it, front, back);
-
-        KeyframesMap::reverse_iterator rend = keyframes.rend();
-        KeyframesMap::iterator end = keyframes.end();
-        aiQuatKey* frontKey = NULL;
-        aiQuatKey* backKey = NULL;
-
-        if(front != rend)
-            frontKey = boost::get<1>(front->second);
-
-        if(back != end)
-            backKey = boost::get<1>(back->second);
-
-        // got 2 keys can interpolate
-        if(frontKey && backKey)
-        {
-            float prop = (it->first - frontKey->mTime) / (backKey->mTime - frontKey->mTime);
-            prop /= ticksPerSecond;
-            aiQuaternion::Interpolate(rot, frontKey->mValue, backKey->mValue, prop);
-        }
-
-        else if(frontKey)
-        {
-            rot = frontKey->mValue;
-        }
-        else if(backKey)
-        {
-            rot = backKey->mValue;
-        }
-    }
-
-    return rot;
-}
-
 void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimation* anim)
 {
     // DefBonePose a matrix that represents the local bone transform (can build from Ogre bone components)
@@ -655,160 +612,55 @@ void OpenAssetImport::parseAnimation (const aiScene* mScene, int index, aiAnimat
     Ogre::LogManager::getSingleton().logMessage("channels = " + Ogre::StringConverter::toString(anim->mNumChannels));
 
     Ogre::Animation* animation;
-    mTicksPerSecond = (0 == anim->mTicksPerSecond) ? 24 : anim->mTicksPerSecond;
-    mTicksPerSecond *= mAnimationSpeedModifier;
-
-    float cutTime = 0.0;
-    if(mLoaderParams & LP_CUT_ANIMATION_WHERE_NO_FURTHER_CHANGE)
-    {
-        for (int i = 1; i < (int)anim->mNumChannels; i++)
-        {
-            aiNodeAnim* node_anim = anim->mChannels[i];
-
-            // times of the equality check
-            float timePos = 0.0;
-            float timeRot = 0.0;
-
-            for(int i = 1; i < node_anim->mNumPositionKeys; i++)
-            {
-                if( node_anim->mPositionKeys[i] != node_anim->mPositionKeys[i-1])
-                {
-                    timePos = node_anim->mPositionKeys[i].mTime;
-                    timePos /= mTicksPerSecond;
-                }
-            }
-
-            for(int i = 1; i < node_anim->mNumRotationKeys; i++)
-            {
-                if( node_anim->mRotationKeys[i] != node_anim->mRotationKeys[i-1])
-                {
-                    timeRot = node_anim->mRotationKeys[i].mTime;
-                    timeRot /= mTicksPerSecond;
-                }
-            }
-
-            if(timePos > cutTime){ cutTime = timePos; }
-            if(timeRot > cutTime){ cutTime = timeRot; }
-        }
-
-        animation = mSkeleton->createAnimation(Ogre::String(animName), Ogre::Real(cutTime));
-    }
-    else
-    {
-        cutTime = Ogre::Math::POS_INFINITY;
-        animation = mSkeleton->createAnimation(Ogre::String(animName), Ogre::Real(anim->mDuration/mTicksPerSecond));
-    }
-
-    animation->setInterpolationMode(Ogre::Animation::IM_LINEAR); //FIXME: Is this always true?
-
-
-    Ogre::LogManager::getSingleton().logMessage("Cut Time " + Ogre::StringConverter::toString(cutTime));
-
+    mTicksPerSecond = 1;
+    animation = mSkeleton->createAnimation(Ogre::String(animName), Ogre::Real(anim->mDuration/mTicksPerSecond));
 
     for (int i = 0; i < (int)anim->mNumChannels; i++)
     {
         Ogre::TransformKeyFrame* keyframe;
-
         aiNodeAnim* node_anim = anim->mChannels[i];
-
-
-        Ogre::LogManager::getSingleton().logMessage("Channel " + Ogre::StringConverter::toString(i));
-        Ogre::LogManager::getSingleton().logMessage("affecting node: " + Ogre::String(node_anim->mNodeName.data));
-        //Ogre::LogManager::getSingleton().logMessage("position keys: " + Ogre::StringConverter::toString(node_anim->mNumPositionKeys));
-        //Ogre::LogManager::getSingleton().logMessage("rotation keys: " + Ogre::StringConverter::toString(node_anim->mNumRotationKeys));
-        //Ogre::LogManager::getSingleton().logMessage("scaling keys: " + Ogre::StringConverter::toString(node_anim->mNumScalingKeys));
-
-
         Ogre::String boneName = Ogre::String(node_anim->mNodeName.data);
 
         if(mSkeleton->hasBone(boneName))
         {
             Ogre::Bone* bone = mSkeleton->getBone(boneName);
+
             Ogre::Matrix4 defBonePoseInv;
             defBonePoseInv.makeInverseTransform(bone->getPosition(), bone->getScale(), bone->getOrientation());
-
             Ogre::NodeAnimationTrack* track = animation->createNodeTrack(i, bone);
 
-            // Ogre needs translate rotate and scale for each keyframe in the track
-            KeyframesMap keyframes;
-
-            for(int i = 0; i < node_anim->mNumPositionKeys; i++)
+            for (int g = 0; g < 300; g++)
             {
-                keyframes[ node_anim->mPositionKeys[i].mTime / mTicksPerSecond ] = KeyframeData( &(node_anim->mPositionKeys[i]), NULL, NULL);
+                aiVector3D pos;
+                aiQuaternion rot;
+                aiMatrix4x4 mat;
+                float time;
+                updateAnimationFunc(scene, node_anim, g, time, mat);
+                mat.DecomposeNoScaling(rot, pos);
+                keyframe = track->createNodeKeyFrame(Ogre::Real(time));
+
+                Ogre::Vector3 trans(pos.x, pos.y, pos.z);
+                Ogre::Quaternion rotat(rot.w, rot.x, rot.y, rot.z);
+
+                Ogre::Vector3 scale(1,1,1); // ignore scale for now
+                Ogre::Matrix4 fullTransform;
+                fullTransform.makeTransform(trans, scale, rotat);
+
+                Ogre::Matrix4 poseTokey = defBonePoseInv * fullTransform;
+                poseTokey.decomposition(trans, scale, rotat);
+
+                keyframe->setTranslate(trans);
+                keyframe->setRotation(rotat);
+                keyframe->setScale(scale);
+
             }
+        }
+    } // if bone exists
 
-            for(int i = 0; i < node_anim->mNumRotationKeys; i++)
-            {
-                KeyframesMap::iterator it = keyframes.find(node_anim->mRotationKeys[i].mTime / mTicksPerSecond);
-                if(it != keyframes.end())
-                {
-                    boost::get<1>(it->second) = &(node_anim->mRotationKeys[i]);
-                }
-                else
-                {
-                    keyframes[ node_anim->mRotationKeys[i].mTime / mTicksPerSecond ] = KeyframeData( NULL, &(node_anim->mRotationKeys[i]), NULL );
-                }
-            }
-
-            for(int i = 0; i < node_anim->mNumScalingKeys; i++)
-            {
-                KeyframesMap::iterator it = keyframes.find(node_anim->mScalingKeys[i].mTime / mTicksPerSecond);
-                if(it != keyframes.end())
-                {
-                    boost::get<2>(it->second) = &(node_anim->mScalingKeys[i]);
-                }
-                else
-                {
-                    keyframes[ node_anim->mRotationKeys[i].mTime / mTicksPerSecond ] = KeyframeData( NULL, NULL, &(node_anim->mScalingKeys[i]) );
-                }
-            }
-
-            KeyframesMap::iterator it = keyframes.begin();
-            KeyframesMap::iterator it_end = keyframes.end();
-
-            for(it; it != it_end; ++it)
-            {
-                if(it->first < cutTime) // or should it be <=
-                {
-                    aiVector3D aiTrans = getTranslate( node_anim, keyframes, it, mTicksPerSecond);
-
-                    Ogre::Vector3 trans(aiTrans.x, aiTrans.y, aiTrans.z);
-
-                    aiQuaternion aiRot = getRotate(node_anim, keyframes, it, mTicksPerSecond);
-
-                    Ogre::Quaternion rot(aiRot.w, aiRot.x, aiRot.y, aiRot.z);
-                    Ogre::Vector3 scale(1,1,1); // ignore scale for now
-
-                    Ogre::Vector3 transCopy = trans;
-
-                    Ogre::Matrix4 fullTransform;
-                    fullTransform.makeTransform(trans, scale, rot);
-
-                    Ogre::Matrix4 poseTokey = defBonePoseInv * fullTransform;
-                    poseTokey.decomposition(trans, scale, rot);
-
-                    keyframe = track->createNodeKeyFrame(Ogre::Real(it->first));
-
-                    // weirdness with the root bone, But this seems to work
-                    if(mSkeleton->getRootBone()->getName() == boneName)
-                    {
-                        trans = transCopy - bone->getPosition();
-                    }
-
-                    keyframe->setTranslate(trans);
-                    keyframe->setRotation(rot);
-                }
-            }
-
-        } // if bone exists
-
-    } // loop through channels
+    // loop through channels
 
     mSkeleton->optimiseAllAnimations();
-
 }
-
-
 
 void OpenAssetImport::markAllChildNodesAsNeeded(const aiNode *pNode)
 {
@@ -1086,7 +938,7 @@ Ogre::MaterialPtr OpenAssetImport::createMaterial(int index, const aiMaterial* m
     Ogre::String outPath;
     Ogre::StringUtil::splitFilename(Ogre::String(szPath.data), basename, outPath);
     Ogre::LogManager::getSingleton().logMessage("Creating " + addr.toStdString());
-    
+
     if (scene->HasTextures() && szPath.length > 0)
         basename.insert(0, addr.right(addr.length() - (addr.lastIndexOf('/')+1)).toStdString());
 
@@ -1423,7 +1275,7 @@ void OpenAssetImport::loadDataFromNode(const aiScene* mScene,  const aiNode *pNo
 
 
             // Create a material instance for the mesh.
-            
+
             const aiMaterial *pAIMaterial = mScene->mMaterials[ pAIMesh->mMaterialIndex ];
             createSubMesh(pNode->mName.data, idx, pNode, pAIMesh, pAIMaterial, mesh, mAAB, mDir);
         }

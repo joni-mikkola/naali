@@ -39,7 +39,7 @@ public:
 
     bool convert(const Ogre::String& filename, bool generateMaterials, QString addr = "", int index = -1);
 
-    Ogre::MeshPtr mMesh;
+    Ogre::Mesh * GetMesh() { return mMesh.get(); }
     std::map<QString, QString> matList;
     std::vector<QString> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
@@ -48,6 +48,7 @@ public:
 private:
     const aiScene *scene;
     QString addr;
+    Ogre::MeshPtr mMesh;
     bool generateMaterials;
     void linearScaleMesh(Ogre::MeshPtr mesh, int targetSize);
     bool createSubMesh(const Ogre::String& name, int index, const aiNode* pNode, const aiMesh *mesh, const aiMaterial* mat, Ogre::MeshPtr pMesh, Ogre::AxisAlignedBox& mAAB, const Ogre::String& mDir);
