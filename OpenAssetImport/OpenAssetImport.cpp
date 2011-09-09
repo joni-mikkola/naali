@@ -30,7 +30,7 @@
 //#include "OgreXMLSkeletonSerializer.h"
 
 //#define USE_SKELETONS
-#define USE_SKELETONS
+//#define USE_SKELETONS
 
 static int meshNum = 0;
 
@@ -470,7 +470,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
 
         Ogre::SkeletonSerializer binSer;
-        binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/" + filu + ".skeleton");
+        //binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/" + filu + ".skeleton");
     }
 
     Ogre::MeshSerializer meshSer;
