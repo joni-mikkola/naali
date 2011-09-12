@@ -38,13 +38,34 @@ export CC="ccache gcc"
 export CXX="ccache g++"
 export CCACHE_DIR=$deps/ccache
 
-private_ogre=true
+private_ogre=false
+# Set build_valgrind true if you want zero optimizations build-options and valgrind installed.
+# Also kNet messageConnection.cpp is modified so that server keepAliveTimeout is 3min instead of 15s.
+build_valgrind=false
 
 if [ x$private_ogre != xtrue ]; then
    more="$more libogre-dev"
 fi
 
-	
+if lsb_release -c | egrep -q "lucid|maverick|natty|oneiric"; then
+        which aptitude > /dev/null 2>&1 || sudo apt-get install aptitude
+        if [ x$build_valgrind != xfalse ]; then
+            more="$more libc6 libc6-dbg valgrind"
+        fi
+	sudo aptitude -y install scons python-dev libogg-dev libvorbis-dev \
+	 libopenjpeg-dev libcurl4-gnutls-dev libexpat1-dev libphonon-dev \
+	 build-essential g++ libboost-all-dev libpoco-dev \
+	 ccache libqt4-dev python-dev \
+	 freeglut3-dev \
+	 libxmlrpc-epi-dev bison flex libxml2-dev cmake libalut-dev \
+	 liboil0.3-dev mercurial unzip xsltproc libqtscript4-qtbindings \
+	 nvidia-cg-toolkit libfreetype6-dev libxaw7-dev libois-dev doxygen libcppunit-dev \
+     libzzip-dev libxrandr-dev libfreeimage-dev $more
+fi
+	 #python-gtk2-dev libdbus-glib-1-dev \
+         #libtelepathy-farsight-dev libnice-dev libgstfarsight0.10-dev \
+         #libtelepathy-qt4-dev python-gst0.10-dev \ 
+
 function build-regular {
     urlbase=$1
     shift
@@ -70,37 +91,6 @@ function build-regular {
     fi
 }
 
-what=quazip
-ver=0.2.3
-if test -f $tags/$what-done; then
-	echo $what is done
-else
-	cd $build
-	rm -rf $what-$ver
-    test -f $tarballs/$what-$ver.tgz || wget -P $tarballs http://sourceforge.net/projects/quazip/files/quazip/$ver/$what-$ver.tar.gz
-	tar zxf $tarballs/$what-$ver.tar.gz
-	cd $what-$ver/$what
-	qmake
-	make -j4
-	cp *.so* $prefix/lib/
-	cp *.h $prefix/include/
-	touch $tags/$what-done
-fi
-
-what=Assimp
-if test -f $tags/$what-done; then
-	echo $what is done
-else
-	cd $build
-	rm -fr $what
-	git clone git://github.com/assimp/assimp.git $what
-	cd $what
-	cmake -DCMAKE_INSTALL_PREFIX=$prefix .
-	make -j $nprocs
-	make install
-	touch $tags/$what-done
-fi
-
 what=bullet-2.77
 if test -f $tags/$what-done; then
     echo $what is done
@@ -110,6 +100,12 @@ else
     test -f $tarballs/$what.tgz || wget -P $tarballs http://bullet.googlecode.com/files/$what.tgz
     tar zxf $tarballs/$what.tgz
     cd $what
+    # This patch is for GCC 4.6. It overrides a known issue with bullet 2.77 and gcc 4.6
+    # When Tundra upgrades to bullet 2.78 or later, this should be removed.
+    if [ "`gcc --version |head -n 1|cut -f 4 -d " "|cut -c -3`" == "4.6" ]; then
+        sed -i "s/static const T[\t]zerodummy/memset(\&value, 0, sizeof(T))/" ./src/BulletSoftBody/btSoftBodyInternals.h
+        sed -i "s/value=zerodummy;//" ./src/BulletSoftBody/btSoftBodyInternals.h
+    fi
     cmake -DCMAKE_INSTALL_PREFIX=$prefix -DBUILD_DEMOS=OFF -DINSTALL_EXTRA_LIBS=ON -DCMAKE_CXX_FLAGS_RELEASE="-O2 -fPIC -DNDEBUG -DBT_NO_PROFILE" .
     make -j $nprocs
     make install
@@ -145,7 +141,7 @@ cp -lf $build/$what/plugins/script/* $viewer/bin/qtscript-plugins/script/
 
 
 what=knet
-if test -f $tags/$what-done; then 
+if false && test -f $tags/$what-done; then 
    echo $what is done
 else
     cd $build
@@ -154,12 +150,21 @@ else
     cd knet
     sed -e "s/USE_TINYXML TRUE/USE_TINYXML FALSE/" -e "s/kNet STATIC/kNet SHARED/" < CMakeLists.txt > x
     mv x CMakeLists.txt
+    # If valgrind build: Change connection timeout to 3min.
+    if [ x$build_valgrind != xtrue ]; then
+        sed -e "s/180.f/30.f/" < src/MessageConnection.cpp > x
+        mv x src/MessageConnection.cpp
+    else
+        sed -e "s/30.f/180.f/" < src/MessageConnection.cpp > x
+        mv x src/MessageConnection.cpp
+    fi
     cmake . -DCMAKE_BUILD_TYPE=Debug
     make -j $nprocs
     cp lib/libkNet.so $prefix/lib/
     rsync -r include/* $prefix/include/
     touch $tags/$what-done
 fi
+
 
 if [ x$private_ogre = xtrue ]; then
     what=ogre
@@ -259,15 +264,39 @@ if test "$1" = "--depsonly"; then
     exit 0
 fi
 
+if [ x$build_valgrind != xtrue ]; then
+    options="-O -g"
+else
+    options="-O0 -fno-inline -Wall -g"
+    cd $viewer/bin/
+    cat > ./.valgrindrc <<EOF
+--memcheck:leak-check=full
+--memcheck:error-limit=no
+--memcheck:track-origins=yes
+--memcheck:suppressions=$viewer/bin/valgrind/supps/gtk_init.supp
+--memcheck:suppressions=$viewer/bin/valgrind/supps/libgdk.supp
+--memcheck:suppressions=$viewer/bin/valgrind/supps/libgobject.supp
+--memcheck:suppressions=$viewer/bin/valgrind/supps/libPython.supp
+--memcheck:suppressions=$viewer/bin/valgrind/supps/nVidia-libGL.supp
+--memcheck:suppressions=$viewer/bin/valgrind/supps/qt47supp.supp
+--memcheck:suppressions=$viewer/bin/valgrind/supps/qtjsc.supp
+--memcheck:log-file=$viewer/bin/valgrind/logs/valgrindMemcheck.log
+--massif:stacks=yes
+--massif:depth=40
+--massif:massif-out-file=valgrind/logs/massif.out
+--smc-check=all
+EOF
+fi
+
 cd $viewer
 cat > ccache-g++-wrapper <<EOF
 #!/bin/sh
-exec ccache g++ -O -g \$@
+exec ccache g++ $options \$@
 EOF
 chmod +x ccache-g++-wrapper
 NAALI_DEP_PATH=$prefix cmake -DCMAKE_CXX_COMPILER="$viewer/ccache-g++-wrapper" .
 make -j $nprocs VERBOSE=1
 
 if [ x$private_ogre = xtrue ]; then
-sed '/PluginFolder/c \PluginFolder=../../naali-deps/install/lib/OGRE' $viewer/bin/plugins-unix.cfg > tmpfile ; mv tmpfile /$viewer/bin/plugins-unix.cfg
+sed '/PluginFolder/c \PluginFolder=lib/OGRE' $viewer/bin/plugins-unix.cfg > tmpfile ; mv tmpfile /$viewer/bin/plugins-unix.cfg
 fi

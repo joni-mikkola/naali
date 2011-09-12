@@ -1,4 +1,5 @@
 #!/bin/bash
+#This script builds and packages realXtend source into Ubuntu deb package.
 
 export LANG=C
 
@@ -10,6 +11,10 @@ ARCH=amd64
 LINUX_RELEASE=lucid
 TAG=none
 BUILDNUMBER=0
+SERVER=false
+TIMESTAMP=`date '+%y%m%d'`
+USESTAMP=false
+
 #IN CASE ERROR HAPPENS, $?-VARIABLE IS != 0
 function errorCheck {
     if [ $? != 0 ];
@@ -20,7 +25,7 @@ function errorCheck {
     fi
 }
 
-USAGE="\nUsage: $0 [--help] [-i install directory] [-b branch] [-t tag] [-a architecture] [-l linux release] 
+USAGE="\nUsage: $0 [--help] [-i install directory] [-b branch] [-t tag] [-a architecture] [-l linux release] [-s server mode] [-d use timestamp]
 		\nBranch is mandatory, select naali or tundra      	
 		\nDefault settings 
       	\n   Install directory: $INSTALL_DIR
@@ -36,6 +41,15 @@ while [ $# -gt 0 ]; do
         echo -e $USAGE
         exit 0
         ;;
+	-s)
+		SERVER=true
+		shift
+		;;
+    -d)
+		USESTAMP=true
+        echo "Version: $VER"
+		shift
+		;;
 	-i)
 	    shift
         if [ -z $1 ]; then
@@ -56,17 +70,6 @@ while [ $# -gt 0 ]; do
 	    BRANCH=$1
             echo $BRANCH
         echo "Branch option: $BRANCH"
-	    shift;
-        ;;
-	-n)
-	    shift
-        if [ -z $1 ]; then
-	        echo "-b option given, but no param for it"
-		    exit 1
-	    fi
-	    BUILDNUMBER=$1
-            echo $BRANCH
-        echo "Buildnumber option: $BUILDNUMBER"
 	    shift;
         ;;
 	-t)
@@ -119,10 +122,19 @@ then
 	BRANCH=develop
 fi
 
-set -e
-set -x
+
+
+mount | grep "/proc on" 
+if [ $? -eq 0 ]; then
+    echo "unmounting /proc"
+    TOUMOUNT=`mount | grep "/proc on" | awk '{ print $3 }'`
+    sudo umount $TOUMOUNT
+fi
 
 sudo rm -fr $INSTALL_DIR
+
+set -e
+set -x
 
 #CREATE FOLDER FOR DEBOOTSTRAP AND DOWNLOAD IT
 #apt-get -y install debootstrap git-core fakeroot fakechroot
@@ -137,16 +149,29 @@ sudo mkdir -p $INSTALL_DIR/$REX_DIR log
 sudo mount --bind /proc $INSTALL_DIR/proc
 
 #CREATE LOCAL COPY OF NAALI.GIT
-if [ ! -d $INSTALL_DIR/$REX_DIR/naali ];
-then
-	sudo git clone ../../. $INSTALL_DIR/$REX_DIR/naali
+if [ $BRANCH == "tundra" ]; then
+    sudo git stash
+    sudo git checkout $BRANCH
+    sudo git pull git://github.com/realXtend/naali.git $BRANCH
+    sudo git clone ../../. $INSTALL_DIR/$REX_DIR/naali
 fi
+
+if [ $BRANCH == "master" ]; then
+    cd ../../../master
+    sudo git stash
+    sudo git checkout $BRANCH
+    sudo git pull git://github.com/realXtend/naali.git $BRANCH
+    sudo git clone . $INSTALL_DIR/$REX_DIR/naali
+    cd -
+fi
+
+
+
 
 sudo chmod 755 $INSTALL_DIR $INSTALL_DIR/$REX_DIR $INSTALL_DIR/$REX_DIR/naali
 cd $INSTALL_DIR/$REX_DIR/naali
 
-sudo git remote add -f upstream git://github.com/realXtend/naali.git
-sudo git checkout $BRANCH
+
 
 if [ $BRANCH == "master" ];
 then
@@ -196,7 +221,7 @@ sudo cp -r ./config $INSTALL_DIR/$REX_DIR/config
 
 #CHROOT INTO OUR UBUNTU AND RUN SCRIPT (PARAMETERS BRANCH + VERSION) + DO LOG FILE
 LOGFILE=`date|awk 'OFS="."{print $2,$3,$6,$4}'`
-sudo chroot $INSTALL_DIR $REX_DIR/config/chroot-script.bash $BRANCH $ARCH $REX_DIR $TAG $BUILDNUMBER $VER $LINUX_RELEASE 2>&1 | sudo tee ./log/$LOGFILE-$BRANCH-$ARCH.log 
+sudo chroot $INSTALL_DIR $REX_DIR/config/chroot-script.bash $BRANCH $ARCH $REX_DIR $TAG $BUILDNUMBER $VER  $LINUX_RELEASE $SERVER $USESTAMP 2>&1 | sudo tee ./log/$LOGFILE-$BRANCH-$ARCH.log 
 
 if [ ! -d ./apt_cache_$ARCH/ ];
 then
@@ -207,5 +232,11 @@ fi
 #MOVE DEB FILES BACK TO OUR CURRENT DIRECTORY
 sudo chmod -R a+rX $INSTALL_DIR/$REX_DIR/
 sudo mv -f $INSTALL_DIR/$REX_DIR/*.deb ./
+
+#IF SERVER IS SET UPLOAD CREATED PACKAGES TO SERVER
+if [ x$SERVER == xtrue ]; then	
+	./upload.bash $LINUX_RELEASE $VER *$VER*.deb
+	rm *.deb
+fi	
 
 sudo umount $INSTALL_DIR/proc

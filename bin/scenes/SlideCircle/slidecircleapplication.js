@@ -1,20 +1,18 @@
 /*
   SlideCircle
-   - circling around slide thingies for your sliding pleasure
+  - circling around slide thingies for your sliding pleasure
 
-   TODO
-   * Add a help text
-   * Path finding so that we won't go through things
-   * Store slide show information (like the slide you are looking at)
-     in a dynamic component
-
+  TODO
+  * Add a help text
+  * Path finding so that we won't go through things
 */
 
 engine.ImportExtension("qt.core");
 engine.ImportExtension("qt.gui");
 
 
-// Some functions needed for QVector3D calculations.
+// Some functions needed for QVector3D calculations. Hopefully we can
+// get rid of these in future (or present)
 
 function distance(v1, v2) {
     var a = Math.pow((v1.x() - v2.x()), 2);
@@ -77,6 +75,16 @@ function smul(v1, s) {
     return result;
 }
 
+function pad(number, length) {
+   
+    var string = '' + number;
+    while (string.length < length) {
+        string = '0' + string;
+    }
+   
+    return string;
+}
+
 function conjg(quat, v) {
     var qvec = quat.vector();
 
@@ -128,22 +136,69 @@ function getPoints(from, to) {
     
 }
 
+function changeSlide(index) {
+    var currentScreen = screens[index % screennumber];
+    var newurl = slideinfo.GetAttribute("slide" + (index));
+    var oldurl = currentScreen.EC_WebView.webviewUrl
+    if (debug) {
+	print("oldurl " + oldurl);
+	print("newurl " + newurl);
+    }
+    if (oldurl != newurl) {
+	if (debug) {
+	    print("It changes");
+	}
+	currentScreen.EC_WebView.webviewUrl = newurl;
+    }
+    changes += 1;
+}
+
 function HandleGotoNext() {
-    newIndex = currentIndex + 1;
-    if (newIndex >= endIndex) {
+    var slideinfo = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleInfo");
+    var currentIndex = slideinfo.GetAttribute("current");
+    if (debug) {
+	print("Current screen is");
+	print(screens[currentIndex % screennumber]);
+	print("Current index is " + currentIndex);
+    }
+
+    var newIndex = currentIndex + 1;
+    if (newIndex > endIndex) {
 	newIndex = 0;
     }
-    getPoints(entities[currentIndex], entities[newIndex]);
-    currentIndex = newIndex;
+    if (debug) {
+	print("New index is " + newIndex);
+	print("Goto screen " + (newIndex % screennumber));
+	print(screens[newIndex % screennumber]);
+    }
+
+    getPoints(screens[currentIndex % screennumber], screens[newIndex % screennumber]);
+    slideinfo.SetAttribute("current", newIndex);
+
+    changeSlide(newIndex);
 }
 
 function HandleGotoPrev() {
-    newIndex = currentIndex - 1;
-    if (newIndex < 0) {
-	newIndex = endIndex - 1;
+    var slideinfo = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleInfo");
+    var currentIndex = slideinfo.GetAttribute("current");
+    if (debug) {
+	print("Current screen is");
+	print(screens[currentIndex % screennumber]);
+	print("Current index is " + currentIndex);
     }
-    getPoints(entities[currentIndex], entities[newIndex]);
-    currentIndex = newIndex;
+    var newIndex = currentIndex -1;
+    if (newIndex < 0) {
+	newIndex = endIndex;
+    }
+    if (debug) {
+	print("New index is " + newIndex);
+	print("Goto screen " + (newIndex % screennumber));
+	print(screens[newIndex % screennumber]);
+    }
+    getPoints(screens[currentIndex % screennumber], screens[newIndex % screennumber]);
+    slideinfo.SetAttribute("current", newIndex);
+
+    changeSlide(newIndex);
 }
 
 function getBezier(t) {
@@ -165,9 +220,31 @@ function getBezier(t) {
 
 
 function animationUpdate(dt) {
-    if (targets.length == 0) {
-	return;
+    var settings = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
+
+    var recording = settings.GetAttribute("recording");
+
+    if (recording) {
+	dt = 1 / 25;
+	var filename = "frame" + pad(animationFrame, 6) + ".jpg";
+	renderer.TakeScreenshot(recordpath, filename);
+	animationFrame += 1;
     }
+
+    if (targets.length == 0) {
+	if (recording) {
+	    if (changes >= endIndex) {
+		settings.SetAttribute("recording", false)
+		max_ratio = 1.5;
+		print("Video done");
+		return;
+	    }
+	    HandleGotoNext();
+	} else {
+	    return;
+	}
+    }
+    
     //backing from front and closing to front also, yes
     if (targets.length == 6 || targets.length == 1) {
 	if (targets.length == 6) {
@@ -184,6 +261,7 @@ function animationUpdate(dt) {
 	if (dist <= 0.1) {
 	    targets.splice(0, 1);
 	    lookAtTargets.splice(0, 1);
+	    print("We're close");
 	    return;
 	}
 	
@@ -194,12 +272,12 @@ function animationUpdate(dt) {
 	camera.placeable.position = newPos;
 	return;
     }
-	     
+
     curveposition += dt / 3;
     
     camera.placeable.position = getBezier(curveposition);
     
-     // Get current rotation
+    // Get current rotation
     var oldtransform = camera.placeable.transform;
     var currentRotation = oldtransform.rot;
     
@@ -220,18 +298,22 @@ function animationUpdate(dt) {
     // If we're close enough we won't turn
     if ((r <= tolerance) || (r >= 360 - tolerance)) {
 	camera.placeable.LookAt(lookAtTargets[0]);
+	print("look at stuff");
 	return;
     }
 
+
     // Don't turn back
     if (r > prev_r + tolerance) {
-	
+	if (debug) {
+	    print("won't turn back");
+	}
 	camera.placeable.LookAt(lookAtTargets[0]);
 	prev_r = r;
 	return;
     }
     prev_r = r;
-	
+    
     var drotx = targetRotation.x - currentRotation.x;
     var droty = targetRotation.y - currentRotation.y;
     var drotz = targetRotation.z - currentRotation.z;
@@ -247,47 +329,91 @@ function animationUpdate(dt) {
     
     camera.placeable.transform = newtransform;
 
+
 }
 
 function reset() {
-    viewScreen(entities[currentIndex]);
+    var entity = screens[currentIndex];
+    viewScreen(entity);
     targets = [];
     lookAtTargets = [];
 }
 
 function updateSettings() {
-    var dyn = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
-    infront = dyn.GetAttribute('infront');
-    close = dyn.GetAttribute('close');
-    far = dyn.GetAttribute('far');
+    var settings = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
+    infront = settings.GetAttribute('infront');
+    close = settings.GetAttribute('close');
+    far = settings.GetAttribute('far');
+    recording = settings.GetAttribute('record')
+    recordpath = settings.GetAttribute('recordpath')
 }
 
-// We look for anything that has a EC_WebView and circulate between them
-var entities = scene.GetEntitiesWithComponentRaw("EC_WebView");
 
-var currentIndex = 0;
-var endIndex = entities.length;
+function StartRecord() {
+    var settings = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
+    settings.SetAttribute("recording", true)
+    max_ratio = 2.5;
+    HandleGotoNext()
+}
+
+
+// We look for anything that has a EC_WebView and circulate between them
+var ents = scene.GetEntitiesWithComponentRaw("EC_DynamicComponent");
+var screens = [];
+
+for (i = 0; i < ents.length; i++) {
+    var candidate = ents[i];
+    if (candidate.EC_DynamicComponent.name == 'SlideScreenInfo') {
+	screens.push(candidate);
+    }
+    
+}
+
+var debug = 0
+
+if (debug) {
+    print(screens);
+    for (i = 0; i < screens.length; i++) {
+	print(screens[i].EC_Name.name + ", id: " +screens[i].id);
+    }
+}
+
+var slideinfo = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleInfo");
+
+//initialize screens
+for (i = 0; i < screens.length; i++) {
+    var url = slideinfo.GetAttribute("slide" + i);
+    screens[i].EC_WebView.webviewUrl = url;
+}
+
+var currentIndex = slideinfo.GetAttribute("current");
+var endIndex = slideinfo.GetAttribute("slidenumber") - 1; 
+var screennumber = screens.length
 
 var inputmapper = me.GetOrCreateComponentRaw("EC_InputMapper", 2, false);
 var camera = scene.GetEntityByNameRaw("FreeLookCamera");
+
 //Handy for debug
 //var camera = scene.GetEntityByName("Monkey");
 
 inputmapper.RegisterMapping('n', "GotoNext", 1);
 inputmapper.RegisterMapping('p', "GotoPrev", 1);
-inputmapper.RegisterMapping('r', "ResetShow", 1);
+inputmapper.RegisterMapping('r', "ResetShow", 1)
+inputmapper.RegisterMapping('v', "StartRecord", 1);
 
 // variables for viewpoint infront is the distance where you want to
 // end up (and leave) close is the distance to which you back up still
 // looking at the screen two points are counted for Bezier
-// cureves. These distances are read from the dynamic component
+// curves. These distances are read from the dynamic component
 
-var dyn = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
-dyn.AttributeChanged.connect(updateSettings);
+var settings = me.GetComponentRaw("EC_DynamicComponent", "SlideCircleSettings");
+settings.AttributeChanged.connect(updateSettings);
 
-var infront = dyn.GetAttribute('infront');
-var close = dyn.GetAttribute('close');
-var far = dyn.GetAttribute('far');
+var infront = settings.GetAttribute('infront');
+var close = settings.GetAttribute('close');
+var far = settings.GetAttribute('far');
+var recording = settings.GetAttribute('record')
+var recordpath = settings.GetAttribute('recordpath')
 
 var tolerance = 3;
 var max_ratio = 1.5;
@@ -296,13 +422,29 @@ var speed = 100
 var prev_r = 360;
 var curveposition;
 
+var animationFrame = 0;
+var changes = 0;
+
 me.Action("GotoNext").Triggered.connect(HandleGotoNext);
 me.Action("GotoPrev").Triggered.connect(HandleGotoPrev);
 me.Action("ResetShow").Triggered.connect(reset);
+me.Action("StartRecord").Triggered.connect(StartRecord);
 
 var targets = [];
-print(targets);
 
-print('..');
+print('Slide circle started');
 
-frame.Updated.connect(animationUpdate);
+
+// Wait for FreeLookCamera to have a placeable
+
+function initShow() {
+    if (camera.placeable != undefined) {
+	// go to first slide
+	reset()
+	frame.Updated.connect(animationUpdate);
+	camera.ComponentAdded.disconnect(initShow);
+	print('Show ready');
+    }
+}
+
+camera.ComponentAdded.connect(initShow);
