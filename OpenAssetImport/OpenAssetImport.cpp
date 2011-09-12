@@ -27,10 +27,8 @@
 #include <QStringList>
 #include <boost/tuple/tuple.hpp>
 #include <boost/filesystem.hpp>
-//#include "OgreXMLSkeletonSerializer.h"
 
-//#define USE_SKELETONS
-//#define USE_SKELETONS
+//#define SKELETON_ENABLED
 
 static int meshNum = 0;
 
@@ -44,7 +42,7 @@ inline Ogre::String toString(const aiColor4D& colour)
 
 int OpenAssetImport::msBoneCount = 0;
 
-void FixLocalReference(QString &matRef, QString addRef)
+void OpenAssetImport::FixLocalReference(QString &matRef, QString addRef)
 {
     Ogre::LogManager::getSingleton().logMessage(addRef.toStdString());
     addRef = addRef.remove(addRef.lastIndexOf('/'), addRef.length());
@@ -57,7 +55,7 @@ void FixLocalReference(QString &matRef, QString addRef)
     matRef.replace(indx+8, 0, addRef + '/');
 }
 
-void FixHttpReference(QString &matRef, QString addRef)
+void OpenAssetImport::FixHttpReference(QString &matRef, QString addRef)
 {
     addRef.replace(0, 7, "http://");
     for (uint i = 0; i < addRef.length(); ++i)
@@ -319,23 +317,12 @@ void getBasePose(const aiScene * sc, const aiNode * nd)
 
 bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMaterials, QString addr, int index)
 {
-    Ogre::LogManager::getSingleton().getDefaultLog()->setLogDetail(Ogre::LL_NORMAL);
-
-    if (mLoaderParams & LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS == false)
-    {
-        mNodeDerivedTransformByName.clear();
-    }
-
     Assimp::DefaultLogger::create("asslogger.log",Assimp::Logger::VERBOSE);
-
-    //Ogre::LogManager::getSingleton().logMessage("Filename " + filename);
 
     this->addr = addr;
     mAnimationSpeedModifier = 1.0f;
-
     Assimp::Importer importer;
-
-
+    index = -1;
     this->generateMaterials = generateMaterials;
     bool searchFromIndex = false;
 
@@ -361,8 +348,6 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     // Usually - if speed is not the most important aspect for you - you'll
     // propably to request more postprocessing than we do in this example.
 
-    index = -1;
-
     if (index != -1)
         searchFromIndex = true;
 
@@ -376,12 +361,15 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                           | aiProcess_Triangulate
                           | aiProcess_FlipUVs
                           | aiProcess_JoinIdenticalVertices
-                          | aiProcess_PreTransformVertices
                           | aiProcess_OptimizeMeshes
                           | aiProcess_RemoveRedundantMaterials
                           | aiProcess_ImproveCacheLocality
                           | aiProcess_LimitBoneWeights
                           | aiProcess_SortByPType;
+
+#ifndef SKELETON_ENABLED
+    pFlags = pFlags | aiProcess_PreTransformVertices;
+#endif
 
     /*if (!searchFromIndex)
         pFlags = pFlags | aiProcess_PreTransformVertices;*/
@@ -401,13 +389,12 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
     grabNodeNamesFromNode(scene, scene->mRootNode);
 
-
-    //
-#ifdef USE_SKELETONS
+#ifdef SKELETON_ENABLED
     grabBoneNamesFromNode(scene, scene->mRootNode);
 #endif
 
-    /*if (searchFromIndex)
+    /* Code sketch for loading meshes by index from Collada file
+    if (searchFromIndex)
     {
         std::vector<QString> mainNodes = GetMeshNodes(scene, scene->mRootNode);
         if (mainNodes.size() > 1 && mainNodes.size() <= index)
@@ -419,17 +406,16 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
             Ogre::LogManager::getSingleton().logMessage("Index " + Ogre::StringConverter::toString(index) + " not found! Loading whole mesh!");
     }
     else
-        transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));*/
+        transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
+    */
 
-    aiMatrix4x4 transform = scene->mRootNode->mTransformation;
-
-
+    aiMatrix4x4 transform;
     transform.FromEulerAnglesXYZ(degreeToRadian(90), 0, degreeToRadian(180));
+    scene->mRootNode->mTransformation = transform;
 
     computeNodesDerivedTransform(scene, scene->mRootNode, transform);
 
-
-#ifdef USE_SKELETONS
+#ifdef SKELETON_ENABLED
     if(mBonesByName.size())
     {
         mSkeleton = Ogre::SkeletonManager::getSingleton().create("conversion", Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
@@ -449,16 +435,12 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
     }
 #endif
 
-    filu = QString(filu.c_str()).remove(filu.find_last_of('.'),4).toStdString();
-
     loadDataFromNode(scene, scene->mRootNode, mPath);
-
-
 
     Ogre::LogManager::getSingleton().logMessage("*** Finished loading ass file ***");
     Assimp::DefaultLogger::kill();
 
-#ifdef USE_SKELETONS
+#ifdef SKELETON_ENABLED
     if(!mSkeleton.isNull())
     {
         unsigned short numBones = mSkeleton->getNumBones();
@@ -470,7 +452,8 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
         }
 
         Ogre::SkeletonSerializer binSer;
-        //binSer.exportSkeleton(mSkeleton.getPointer(), "/home/joni/QT/jarmoo8/bin/scenes/AssImpDemoScene/" + filu + ".skeleton");
+
+        //binSer.exportSkeleton(mSkeleton.getPointer(), "model.skeleton");
     }
 
     Ogre::MeshSerializer meshSer;
@@ -506,6 +489,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 }
             }
         }
+        //meshSer.exportMesh(mMesh.getPointer(), "model.mesh");
     }
 #endif
 
@@ -528,6 +512,7 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
 
                 Ogre::String matName(sm->getMaterialName());
                 Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
+
 
                 ms.queueForExport(materialPtr, true);
 
@@ -556,12 +541,10 @@ bool OpenAssetImport::convert(const Ogre::String& filename, bool generateMateria
                 QString tmp = sm->getMaterialName().c_str();
                 matNameList.push_back(tmp + ".material");
             }
-
         }
     }
 
-    //Scale mesh scale (xyz) below 10 units. Do not scale if scene contains animation
-    //otherwise skeleton data focks up
+    //Scale mesh scale (xyz) below 10 units.
     if (!scene->HasAnimations())
         linearScaleMesh(mMesh, 10);
 
@@ -719,62 +702,16 @@ void OpenAssetImport::createBonesFromNode(const aiScene* mScene,  const aiNode *
 
         aiQuaternion rot;
         aiVector3D pos;
-        aiVector3D scale;
 
-        /*
-        aiMatrix4x4 aiM = mNodeDerivedTransformByName.find(pNode->mName.data)->second;
-
-        const aiNode* parentNode = NULL;
-        {
-            boneMapType::iterator it = boneMap.find(pNode->mName.data);
-            if(it != boneMap.end())
-            {
-                parentNode = it->second.parent;
-            }
-        }
-        if(parentNode)
-        {
-            aiMatrix4x4 aiMParent = mNodeDerivedTransformByName.find(parentNode->mName.data)->second;
-            aiM = aiMParent.Inverse() * aiM;
-        }
-        */
-
-        // above should be the same as
         aiMatrix4x4 aiM = pNode->mTransformation;
 
-        aiM.Decompose(scale, rot, pos);
-
-
-        /*
-        // debug render
-        Ogre::SceneNode* sceneNode = NULL;
-        if(parentNode)
-        {
-            Ogre::SceneNode* parent = static_cast<Ogre::SceneNode*>(
-                GOOF::NodeUtils::GetNodeMatch(getSceneManager()->getRootSceneNode(), parentNode->mName.data, false));
-            assert(parent);
-            sceneNode = parent->createChildSceneNode(pNode->mName.data);
-        }
-        else
-        {
-            sceneNode = getSceneManager()->getRootSceneNode()->createChildSceneNode(pNode->mName.data);
-        }
-
-        sceneNode->setScale(scale.x, scale.y, scale.z);
-        sceneNode->setPosition(pos.x, pos.y, pos.z);
-        sceneNode->setOrientation(rot.w, rot.x, rot.y, rot.z);
-
-        sceneNode = sceneNode->createChildSceneNode();
-        sceneNode->setScale(0.01, 0.01, 0.01);
-        sceneNode->attachObject(getSceneManager()->createEntity("Box1m.mesh"));
-        */
+        aiM.DecomposeNoScaling(rot, pos);
 
         if (!aiM.IsIdentity())
         {
             bone->setPosition(pos.x, pos.y, pos.z);
             bone->setOrientation(rot.w, rot.x, rot.y, rot.z);
         }
-
 
         Ogre::LogManager::getSingleton().logMessage(Ogre::StringConverter::toString(msBoneCount) + ") Creating bone '" + Ogre::String(pNode->mName.data) + "'");
 
@@ -1127,7 +1064,9 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
             vect.x = mesh->mVertices[n].x;
             vect.y = mesh->mVertices[n].y;
             vect.z = mesh->mVertices[n].z;
+#ifndef SKELETONS_ENABLED
             vect *= aiM;
+#endif
 
             Ogre::Vector3 position( vect.x, vect.y, vect.z );
             vbData[offset++] = vect.x;
@@ -1142,8 +1081,9 @@ bool OpenAssetImport::createSubMesh(const Ogre::String& name, int index, const a
             vect.x = mesh->mNormals[n].x;
             vect.y = mesh->mNormals[n].y;
             vect.z = mesh->mNormals[n].z;
+#ifndef SKELETONS_ENABLED
             vect *= aiM;
-
+#endif
             vbData[offset++] = vect.x;
             vbData[offset++] = vect.y;
             vbData[offset++] = vect.z;

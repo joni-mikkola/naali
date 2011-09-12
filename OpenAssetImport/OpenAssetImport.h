@@ -21,28 +21,14 @@ struct boneNode
 class OpenAssetImport
 {
 public:
-    enum LoaderParams
-    {
-        LP_GENERATE_SINGLE_MESH = 1<<0,
-
-        // See the two possible methods for material gneration
-        LP_GENERATE_MATERIALS_AS_CODE = 1<<1,
-
-        // 3ds max exports the animation over a longer time frame than the animation actually plays for
-        // this is a fix for that
-        LP_CUT_ANIMATION_WHERE_NO_FURTHER_CHANGE = 1<<2,
-
-        // when 3ds max exports as DAE it gets some of the transforms wrong, get around this by using
-        // this option and a prior run with of the model exported as ASE
-        LP_USE_LAST_RUN_NODE_DERIVED_TRANSFORMS = 1<<3
-    };
-
     bool convert(const Ogre::String& filename, bool generateMaterials, QString addr = "", int index = -1);
 
     Ogre::Mesh * GetMesh() { return mMesh.get(); }
     std::map<QString, QString> matList;
     std::vector<QString> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
+    void FixLocalReference(QString &matRef, QString addRef);
+    void FixHttpReference(QString &matRef, QString addRef);
     bool IsSupportedExtension(QString extension);
 
 private:

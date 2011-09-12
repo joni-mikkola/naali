@@ -1215,14 +1215,14 @@ void AssetAPI::OnAssetDiskSourceChanged(const QString &path_)
     }
 }
 
-#ifdef ASSIMP_ENABLED
-
 bool IsAssimpMaterial(const QString &filename)
 {
     if (filename.contains('#'))
         return true;
     return false;
 }
+
+#ifdef ASSIMP_ENABLED
 
 bool IsAssimpSupported(const QString &filename)
 {

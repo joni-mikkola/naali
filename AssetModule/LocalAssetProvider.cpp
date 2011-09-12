@@ -32,28 +32,37 @@ LocalAssetProvider::~LocalAssetProvider()
 {
 }
 
+#ifdef ASSIMP_ENABLED
+
 bool LoadFileFromOgreResource(QString &ref, std::vector<u8> &dst)
 {
     Ogre::TextureManager & manager = Ogre::TextureManager::getSingleton();
+
+    // Load texture for compressed blend file
     manager.load(ref.toStdString().c_str(), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME);
     Ogre::TexturePtr tex = (Ogre::TexturePtr)manager.getByName(ref.toStdString().c_str());
 
+    // If texture is found
     if (!tex.isNull())
     {
         Ogre::Image img;
         tex->convertToImage(img);
-        Ogre::DataStreamPtr konv = img.encode("png");
-        std::string test = konv->getAsString();
 
-        for (int i = 0; i < test.length(); i++)
-            dst.push_back(test[i]);
+        // Convert image to png format
+        Ogre::DataStreamPtr imgconv = img.encode("png");
+        std::string texture = imgconv->getAsString();
 
-        konv->close();
+        for (int i = 0; i < texture.length(); i++)
+            dst.push_back(texture[i]);
+
+        imgconv->close();
         return true;
     }
     else
         return false;
 }
+
+#endif
 
 QString LocalAssetProvider::Name()
 {
@@ -221,6 +230,7 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         QString ref = transfer->source.ref;
 
+#ifdef ASSIMP_ENABLED
         // Strip file: trims asset provider id (f.ex. 'file://') and potential mesh name inside the file (everything after last slash)
         if (ref.startsWith("file://"))
         {
@@ -231,8 +241,20 @@ void LocalAssetProvider::CompletePendingFileDownloads()
         }
 
         // Don't cut string when using local://-providers
+        // Many of the models in the 3D warehouse has the same name, therefore add local references with path e.g "models/boy/models/boy.dae"
         if (ref.startsWith("local://"))
             ref = ref.mid(8);
+#else
+        // Strip file: trims asset provider id (f.ex. 'file://') and potential mesh name inside the file (everything after last slash)
+        if (ref.startsWith("file://"))
+            ref = ref.mid(7);
+        if (ref.startsWith("local://"))
+            ref = ref.mid(8);
+
+        int lastSlash = ref.lastIndexOf('/');
+        if (lastSlash != -1)
+            ref = ref.left(lastSlash);
+#endif
 
         LocalAssetStoragePtr storage;
         QString path = GetPathForAsset(ref, &storage);
@@ -254,18 +276,20 @@ void LocalAssetProvider::CompletePendingFileDownloads()
 
         bool success;
 
+#ifdef ASSIMP_ENABLED
         if (IsAssimpMaterial(ref))
         {
-#ifdef ASSIMP_ENABLED
             success = LoadMaterialInfo(ref, transfer->rawAssetData, framework->Asset()->materialMap);
-#endif
         }
         else
+#endif
             success = LoadFileToVector(absoluteFilename.toStdString().c_str(), transfer->rawAssetData);
 
+#ifdef ASSIMP_ENABLED
         // Try to load data from Ogre ResourceManager
         if (!success && exist)
             success = LoadFileFromOgreResource(ref, transfer->rawAssetData);
+#endif
 
         if (!success)
         {
