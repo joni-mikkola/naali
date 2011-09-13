@@ -147,15 +147,20 @@ G3dwhDialog::~G3dwhDialog()
 //Enables multiselection of models when CTRL is pressed
 void G3dwhDialog::keyPressEvent(QKeyEvent *e)
 {
-    if(e->key() == Qt::Key_Control)
-    {
+    switch(e->key()){
+    case Qt::Key_Control:
         if(ui->downloadList->currentItem()!=NULL)
             multiSelectionList.append("models/"+ui->downloadList->currentItem()->text());
 
         modelFileName.clear();
         ui->downloadList->setSelectionMode(QAbstractItemView::MultiSelection);
         multiSelection=true;
+        break;
+    case Qt::Key_Delete:
+        removeButton_Clicked();
+        break;
     }
+
 }
 
 //Disables multiselection of models when CTRL is released and clears the list of selected models
@@ -629,7 +634,7 @@ void G3dwhDialog::readMetaData()
 void G3dwhDialog::removeButton_Clicked()
 {
 
-    if (ui->downloadList->currentItem() == NULL && !multiSelectionList.isEmpty())
+    if (ui->downloadList->currentItem() == NULL && multiSelectionList.isEmpty())
     {
         LogInfo("No item selected");
         return;
@@ -653,26 +658,33 @@ void G3dwhDialog::removeButton_Clicked()
             return;
 
         QStringList fileContent;
+        QStringList newFileContent;
 
         while (!htmlSources.atEnd())
         {
             QByteArray fileInput = htmlSources.readLine();
-            QString line = fileInput;
-            if (!line.contains(removeFileName,Qt::CaseSensitive))
-            {
-                fileContent.append(line);
-            }
+            QString line=fileInput;
+            fileContent.append(line);
         }
-
+        htmlSources.close();
         htmlSources.remove();
+
+        QString checkFile;
+
+        for(int i=0;i<fileContent.count();i++)
+        {
+            checkFile=fileContent.at(i).split("|").last().remove(QRegExp("\n"));
+            if(QFile::exists(checkFile))
+                newFileContent.append(fileContent.at(i));
+        }
 
         if (!htmlSources.open(QIODevice::Append | QIODevice::Text))
             return;
 
         QTextStream out(&htmlSources);
-        for(int i=0; i<fileContent.length(); i++)
+        for(int i=0; i<newFileContent.length(); i++)
         {
-            out << fileContent[i];
+            out << newFileContent.at(i);
         }
         htmlSources.close();
     }
@@ -745,11 +757,26 @@ int G3dwhDialog::unpackDownload(QString file, QString & daeRef)
         return false;
     }
 
+    QuaZipFileInfo info;
     QuaZipFile zFile(&zip);
     QString name;
     char c;
+
+    //Some test code to check to contents of zip archive
+    qDebug()<<"Entries"<<zip.getEntriesCount();
+    QStringList archiveContent;
     for(bool more=zip.goToFirstFile(); more; more=zip.goToNextFile())
     {
+        archiveContent.append(zFile.getActualFileName());
+    }
+    qDebug()<<archiveContent;
+
+    for(bool more=zip.goToFirstFile(); more; more=zip.goToNextFile())
+    {
+        if(!zip.getCurrentFileInfo(&info)) {
+        qWarning("testRead(): getCurrentFileInfo(): %d\n", zip.getZipError());
+        return false;
+        }
         if(!zFile.open(QIODevice::ReadOnly)) {
             qWarning("testRead(): file.open(): %d", zFile.getZipError());
             return false;
