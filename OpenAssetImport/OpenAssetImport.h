@@ -21,16 +21,19 @@ struct boneNode
 class OpenAssetImport
 {
 public:
-    bool convert(const Ogre::String& filename, bool generateMaterials, QString addr = "", int index = -1);
+    bool convert(const unsigned char * fileData, size_t numBytes, bool generateMaterials);
 
-    Ogre::Mesh * GetMesh() { return mMesh.get(); }
+
     std::map<QString, QString> matList;
     std::vector<QString> matNameList;
     const Ogre::String& getBasename(){ return mBasename; }
     void FixLocalReference(QString &matRef, QString addRef);
     void FixHttpReference(QString &matRef, QString addRef);
     bool IsSupportedExtension(QString extension);
-
+    Ogre::Mesh * GetMesh()
+    {
+        return mMesh.get();
+    }
 private:
     const aiScene *scene;
     QString addr;

@@ -9,6 +9,7 @@
 #include "EC_Mesh.h"
 #include "OgreConversionUtils.h"
 #include "OgreSkeletonAsset.h"
+#include "AssImpAsset.h"
 #include "OgreMeshAsset.h"
 #include "OgreMaterialAsset.h"
 #include "IAssetTransfer.h"
@@ -1005,7 +1006,7 @@ void EC_Mesh::OnComponentRemoved(IComponent* component, AttributeChange::Type ch
 
 void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
 {
-    OgreMeshAsset *mesh = dynamic_cast<OgreMeshAsset*>(asset.get());
+    OgreMeshAsset *mesh = static_cast<OgreMeshAsset*>(asset.get());
     if (!mesh)
     {
         LogError("OnMeshAssetLoaded: Mesh asset load finished for asset \"" + asset->Name().toStdString() + "\", but downloaded asset was not of type OgreMeshAsset!");
@@ -1017,7 +1018,8 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
     {
         if (mesh->ogreMesh.get())
         {
-            ogreMeshName = QString::fromStdString(mesh->ogreMesh->getName()).trimmed();
+            if (!static_cast<OgreMeshAsset*>(asset.get()))
+                ogreMeshName = QString::fromStdString(mesh->ogreMesh->getName()).trimmed();
 
             // Do not reload if all of the following are met
             // 1. Ogre::Entity and Ogre::Mesh are valid (aka this is not the first load for this EC_Mesh) 

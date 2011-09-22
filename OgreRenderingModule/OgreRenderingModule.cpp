@@ -27,6 +27,7 @@
 #include "AssetAPI.h"
 #include "AssetCache.h"
 #include "GenericAssetFactory.h"
+#include "AssImpAsset.h"
 #include "OgreMeshAsset.h"
 #include "OgreParticleAsset.h"
 #include "OgreSkeletonAsset.h"
@@ -77,6 +78,7 @@ namespace OgreRenderer
         framework_->Asset()->RegisterAssetTypeFactory(AssetTypeFactoryPtr(new GenericAssetFactory<OgreParticleAsset>("OgreParticle")));
         framework_->Asset()->RegisterAssetTypeFactory(AssetTypeFactoryPtr(new GenericAssetFactory<OgreSkeletonAsset>("OgreSkeleton")));
         framework_->Asset()->RegisterAssetTypeFactory(AssetTypeFactoryPtr(new GenericAssetFactory<OgreMaterialAsset>("OgreMaterial")));
+        framework_->Asset()->RegisterAssetTypeFactory(AssetTypeFactoryPtr(new GenericAssetFactory<AssImpAsset>("AssImpMesh")));
     }
 
     void OgreRenderingModule::PreInitialize()
