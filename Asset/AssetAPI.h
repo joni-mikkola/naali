@@ -113,12 +113,34 @@ public:
 
     enum AssetRefType
     {
+        AssetRefInvalid,
         AssetRefLocalPath,      ///< The assetRef points to the local filesystem, e.g "C:\myassets\texture.png".
         AssetRefLocalUrl,       ///< The assetRef points to the local filesystem, using a local specifier like local://.
         AssetRefExternalUrl,    ///< The assetRef points to a location external to the system, using a URL protocol specifier.
         AssetRefDefaultStorage, ///< The assetRef points to the default system storage.
         AssetRefNamedStorage    ///< The assetRef points to an explicitly named storage.
     };
+
+    /// Breaks the given assetRef into pieces, and returns the parsed type.
+    /// @param assetRef The assetRef to parse.
+    /// @param outProtocolPart [out] Receives the protocol part of the ref, e.g. "http://server.com/asset.png" -> "http". If it doesn't exist, returns an empty string.
+    /// @param outNamedStorage [out] Receives the named storage specifier in the ref, e.g. "myStorage:asset.png" -> "myStorage". If it doesn't exist, returns an empty string.
+    /// @param outProtocol_Path [out] Receives the "path name" identifying where the asset is stored in.
+    ///                                e.g. "http://server.com/path/folder2/asset.png" -> "http://server.com/path/folder2/".
+    ///                                     "myStorage:asset.png" -> "myStorage:". Always has a trailing slash if necessary.
+    /// @param outPath_Filename_SubAssetName [out] Gets the combined path name, asset filename and asset subname in the ref.
+    ///                                e.g. "local://path/folder/asset.png, subAsset" -> "path/folder/asset.png, subAsset".
+    ///                                     "namedStorage:path/folder/asset.png, subAsset" -> "path/folder/asset.png, subAsset".
+    /// @param outPath_Filename [out] Gets the combined path name and asset filename in the ref.
+    ///                                e.g. "local://path/folder/asset.png, subAsset" -> "path/folder/asset.png".
+    ///                                     "namedStorage:path/folder/asset.png, subAsset" -> "path/folder/asset.png".
+    /// @param outPath [out] Returns the path part of the ref, e.g. "local://path/folder/asset.png, subAsset" -> "path/folder/". Has a trailing slash when necessary.
+    /// @param outFilename [out] Returns the base filename of the asset. e.g. "local://path/folder/asset.png, subAsset" -> "asset.png".
+    /// @param outSubAssetName [out] Returns the subasset name in the ref. e.g. "local://path/folder/asset.png, subAsset" -> "subAsset".
+    /// @param outFullRef [out] Returns a cleaned or "canonicalized" version of the asset ref in full.
+    static AssetRefType ParseAssetRef(QString assetRef, QString *outProtocolPart = 0, QString *outNamedStorage = 0, QString *outProtocol_Path = 0,
+        QString *outPath_Filename_SubAssetName = 0, QString *outPath_Filename = 0, QString *outPath = 0, QString *outFilename = 0, QString *outSubAssetName = 0,
+        QString *outFullRef = 0, QString *outFullRefNoSubAssetName = 0);
 
 public slots:
     /// Opens the internal Asset API asset cache to the given directory. When the Asset API starts up, the asset cache is not created. This allows
@@ -201,6 +223,10 @@ public slots:
     /// a string "texture.png" and nothing else.
     AssetStoragePtr GetDefaultAssetStorage() const;
 
+    /// Returns the asset storage of the given name.
+    /// @param name The name of the storage to get. Remember that Asset Storage names are case-insensitive.
+    AssetStoragePtr GetAssetStorageByName(const QString &name) const;
+
     /// Sets the asset storage to be used when assets are requested by their local names.
     void SetDefaultAssetStorage(const AssetStoragePtr &storage);
 
@@ -209,8 +235,20 @@ public slots:
                usually the local path of the scene content that is being added. */
     static FileQueryResult QueryFileLocation(QString sourceRef, QString baseDirectory, QString &outFilePath);
 
+    /// Given an assetRef, turns it into a native OS file path to the asset. The given ref is resolved in the context of "local://", if it is
+    /// a relative asset ref. If ref contains a subAssetName, it is stripped from outFilePath, and returned in subAssetName.
+    /// If the assetRef doesn't represent a file on the local filesystem, FileQueryExternalFile is returned and outFilePath is set to equal best effort to parse 'ref' locally.
+    FileQueryResult ResolveLocalAssetPath(QString ref, QString baseDirectoryContext, QString &outFilePath, QString *subAssetName = 0);
+
     /// Examines the given assetRef and returns what kind of assetRef it is. ///\todo This function is only partially implemented.
     static AssetRefType ParseAssetRefType(QString assetRef);
+
+    /// Parses a (relative) assetRef in the given context, and returns an assetRef pointing to the same asset as an absolute asset ref.
+    /// For example: context: "local://myasset.material", ref: "texture.png" returns "local://texture.png".
+    /// context: "http://myserver.com/path/myasset.material", ref: "texture.png" returns "http://myserver.com/path/texture.png".
+    /// The context string may be left empty, in which case the current default storage (GetDefaultAssetStorage()) is used as the context.
+    /// If ref is an absolute asset reference, it is returned unmodified (no need for context).
+    QString ResolveAssetRef(QString context, QString ref);
 
     /// Parses the local filename of the given assetRef. For example: ExtractLocalName("C:\assets\my.mesh") will return "my.mesh",
     /// ExtractLocalName("local://xxx.png") will return "xxx.png"). ExtractLocalName("local://collada.dae/subMeshName") will
@@ -313,6 +351,8 @@ public slots:
 
     /// An utility function that counts the number of dependencies the given asset has to other assets that have not been loaded in.
     int NumPendingDependencies(AssetPtr asset);
+
+
 
 signals:
     /// Emitted for each new asset that was created and added to the system. When this signal is triggered, the dependencies of an asset

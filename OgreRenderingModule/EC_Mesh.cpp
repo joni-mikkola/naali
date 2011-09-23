@@ -1013,6 +1013,10 @@ void EC_Mesh::OnMeshAssetLoaded(AssetPtr asset)
         return;
     }
 
+    // Load materials loaded for a given mesh asset in deserialize of AssImpAsset
+    if (dynamic_cast<AssImpAsset*>(asset.get()))
+        meshMaterial.Set(dynamic_cast<AssImpAsset*>(asset.get())->GetReferences(), AttributeChange::Default);
+
     QString ogreMeshName = mesh->Name();
     if (mesh)
     {

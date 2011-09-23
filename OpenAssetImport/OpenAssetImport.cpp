@@ -508,8 +508,8 @@ bool OpenAssetImport::convert(const unsigned char * fileData, size_t numBytes, b
                 Ogre::MaterialPtr materialPtr = mmptr->getByName(matName);
 
                 ms.queueForExport(materialPtr, true);
-                QString materialInfo = ms.getQueuedAsString().c_str();
-                Ogre::LogManager::getSingleton().logMessage("matInfo: " + materialInfo.toStdString());
+                //QString materialInfo = ms.getQueuedAsString().c_str();
+                //Ogre::LogManager::getSingleton().logMessage("matInfo: " + materialInfo.toStdString());
             }
         }
     }

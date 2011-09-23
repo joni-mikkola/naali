@@ -46,6 +46,11 @@ T ParseString(const std::string &val, T default_value)
     }
 }
 
+std::wstring QStringToWString(const QString &qstr);
+QString QStringfromWCharArray(const wchar_t *string, int size);
+QString WStringToQString(const std::wstring &str);
+int QStringtoWCharArray(QString qstr, wchar_t *array);
+
 //! Get the current time as a string.
 std::string GetLocalTimeString();
 

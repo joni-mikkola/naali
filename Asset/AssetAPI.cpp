@@ -23,6 +23,8 @@
 #include <QDir>
 #include <QFileSystemWatcher>
 
+#include <boost/regex.hpp>
+
 DEFINE_POCO_LOGGING_FUNCTIONS("Asset")
 
 using namespace Foundation;
@@ -150,6 +152,262 @@ std::vector<AssetStoragePtr> AssetAPI::GetAssetStorages() const
 
     return storages;
 }
+
+AssetStoragePtr AssetAPI::GetAssetStorageByName(const QString &name) const
+{
+    foreach(AssetProviderPtr provider, GetAssetProviders())
+        foreach(AssetStoragePtr storage, provider->GetStorages())
+            if (storage->Name().compare(name, Qt::CaseInsensitive) == 0)
+                return storage;
+    return AssetStoragePtr();
+}
+
+QString AssetAPI::ResolveAssetRef(QString context, QString assetRef)
+{
+    if (assetRef.trimmed().isEmpty())
+        return "";
+
+    context = context.trimmed();
+
+    // First see if we have an exact match for the ref to an existing asset.
+    AssetMap::iterator iter = assets.find(assetRef);
+    if (iter != assets.end())
+        return assetRef; // Use the ref as-is, there's an existing asset to map this string to.
+
+    // If the assetRef is by local filename without a reference to a provider or storage, use the default asset storage in the system for this assetRef.
+    QString assetPath;
+    QString namedStorage;
+    QString fullRef;
+    AssetRefType assetRefType = ParseAssetRef(assetRef, 0, &namedStorage, 0, &assetPath, 0, 0, 0, 0, &fullRef);
+    assetRef = fullRef; // The first thing we do is normalize the form of the ref. This means e.g. adding 'http://' in front of refs that look like 'www.server.com/'.
+    switch(assetRefType)
+    {
+    case AssetRefLocalPath: // Absolute path like "C:\myassets\texture.png".
+    case AssetRefLocalUrl: // Local path using "local://", like "local://file.mesh".
+    case AssetRefExternalUrl: // External path using an URL specifier, like "http://server.com/file.mesh" or "someProtocol://server.com/asset.dat".
+        return assetRef;
+    case AssetRefNamedStorage: // The asset ref explicitly points to a named storage. Use the provider for that storage.
+        {
+            AssetStoragePtr storage = GetAssetStorageByName(namedStorage);
+            if (!storage)
+                return assetRef; // Failed to find the provider, just use the ref as it was, and hope.
+            return storage->GetFullAssetURL(assetPath);
+        }
+        break;
+    }
+    assert(false);
+    return assetRef;
+}
+
+AssetAPI::FileQueryResult AssetAPI::ResolveLocalAssetPath(QString ref, QString baseDirectoryContext, QString &outFilePath, QString *subAssetName)
+{
+    // Make sure relative paths are turned into local paths.
+    QString refLocal = ResolveAssetRef("local://", ref);
+
+    QString pathFilename;
+    QString protocol;
+    AssetRefType sourceRefType = ParseAssetRef(refLocal, &protocol, 0, 0, 0, &pathFilename, 0, 0, subAssetName);
+    if (sourceRefType == AssetRefInvalid || sourceRefType == AssetRefExternalUrl || sourceRefType == AssetRefNamedStorage)
+    {
+        // Failed to resolve path, it is not local.
+        outFilePath = refLocal; // Return the path that was tried.
+        return FileQueryExternalFile;
+    }
+    else if (sourceRefType == AssetRefLocalPath)
+    {
+        outFilePath = pathFilename;
+        return QFile::exists(outFilePath) ? FileQueryLocalFileFound : FileQueryLocalFileMissing;
+    }
+    else if (sourceRefType == AssetRefLocalUrl)
+    {
+        outFilePath = pathFilename;
+        if (QFile::exists(outFilePath))
+            return FileQueryLocalFileFound;
+
+        outFilePath = RecursiveFindFile(baseDirectoryContext, pathFilename);
+        if (!outFilePath.isEmpty())
+            return FileQueryLocalFileFound;
+
+        ///\todo Query all local storages for the file.
+        ///\todo Can't currently query the LocalAssetProviders here directly (wrong direction for dependency chain).
+
+        outFilePath = ref;
+        return FileQueryLocalFileMissing;
+    }
+    else
+    {
+        // Unknown reference type.
+        outFilePath = ref;
+        return FileQueryExternalFile;
+    }
+}
+
+AssetAPI::AssetRefType AssetAPI::ParseAssetRef(QString assetRef, QString *outProtocolPart, QString *outNamedStorage, QString *outProtocol_Path,
+                                               QString *outPath_Filename_SubAssetName, QString *outPath_Filename, QString *outPath,
+                                               QString *outFilename, QString *outSubAssetName, QString *outFullRef, QString *outFullRefNoSubAssetName)
+{
+    if (outProtocolPart) *outProtocolPart = "";
+    if (outNamedStorage) *outNamedStorage = "";
+    if (outProtocol_Path) *outProtocol_Path = "";
+    QString protocol_path = "";
+    if (outPath_Filename_SubAssetName) *outPath_Filename_SubAssetName = "";
+    if (outPath_Filename) *outPath_Filename = "";
+    if (outPath) *outPath = "";
+    if (outFilename) *outFilename = "";
+    if (outSubAssetName) *outSubAssetName = "";
+    if (outFullRef) *outFullRef = "";
+    if (outFullRefNoSubAssetName) *outFullRefNoSubAssetName = "";
+
+    /* Examples of asset refs:
+
+     a1) local://asset.sfx                                      AssetRefType = AssetRefLocalUrl.
+         file:///unix/file/path/asset.sfx
+         file://C:/windows/file/path/asset.sfx
+
+     a2) http://server.com/asset.sfx                            AssetRefType = AssetRefExternalUrl.
+         someotherprotocol://some/path/specifier/asset.sfx
+
+     b0) special case: www.server.com/asset.png                 AssetRefType = AssetRefExternalUrl with 'http' hardcoded as protocol.
+         As customary with web browsers, people expect to be able to write just www.server.com/asset.png when they mean a network URL.
+         We detect this case as a string that starts with 'www.'.
+
+     b1) /unix/absolute/path/asset.sfx                          AssetRefType = AssetRefLocalPath.
+
+     b2) X:/windows/forwardslash/path/asset.sfx                 AssetRefType = AssetRefLocalPath.
+         X:\windows\backslash\path\asset.sfx
+         X:\windows/mixedupslash\path/asset.sfx
+
+     b3) namedstorage:asset.sfx                                 AssetRefType = AssetRefNamedStorage.
+
+        Each category can have an optional extra subasset specifier, separated with a comma. Examples:
+
+             asset.sfx,subAssetName.sfx2
+             asset.sfx,subAssetNameWithoutSuffix
+             asset.sfx, "subAssetName as a string with spaces"
+             http://server.com/asset.sfx,subAssetName.sfx2
+    */
+
+    assetRef = assetRef.trimmed();
+    assetRef.replace("\\", "/"); // Normalize all path separators to use forward slashes.
+
+    using namespace boost;
+    using namespace std;
+
+    wstring ref = QStringToWString(assetRef);
+
+    wregex expression1(L"(.*?)://(.*)"); // a): protocolSpecifier://pathToAsset
+    wregex expression2(L"([A-Za-z]:[/\\\\].*?)"); // b2): X:\windowsPathToAsset or X:/windowsPathToAsset
+    wregex expression3(L"(.*?):(.*)"); // b3): X:\windowsPathToAsset or X:/windowsPathToAsset
+    wsmatch what;
+    wstring fullPath; // Contains the url without the "protocolPart://" prefix.
+    AssetRefType refType = AssetRefInvalid;
+    if (regex_match(ref, what, expression1)) // Is ref of type 'a)' above?
+    {
+        QString protocol = WStringToQString(what[1].str());
+        if (protocol.compare("local", Qt::CaseInsensitive) == 0 || protocol.compare("file", Qt::CaseInsensitive) == 0)
+            refType = AssetRefLocalUrl;
+        else
+            refType = AssetRefExternalUrl;
+        if (outProtocolPart)
+            *outProtocolPart = protocol;
+
+        fullPath = what[2].str();
+        protocol_path = protocol + "://";
+        if (outProtocol_Path) // Partially save the beginning of the protocol & path part. This will be completed below with the full path.
+            *outProtocol_Path = protocol_path;
+
+        if (outFullRef)
+            *outFullRef = protocol.toLower() + "://";
+    }
+    else if (assetRef.startsWith("www.", Qt::CaseInsensitive)) // Ref is of type 'b0)'?
+    {
+        refType = AssetRefExternalUrl;
+        if (outProtocolPart)
+            *outProtocolPart = "http";
+        fullPath = ref;
+
+        protocol_path = "http://";
+        if (outProtocol_Path) // Partially save the beginning of the protocol & path part. This will be completed below with the full path.
+            *outProtocol_Path = protocol_path;
+        if (outFullRef)
+            *outFullRef = "http://";
+    }
+    else if (assetRef.startsWith("/")) // Is ref of type 'b1)'?
+    {
+        refType = AssetRefLocalPath;
+        fullPath = ref;
+    }
+    else if (regex_match(ref, what, expression2)) // b2)
+    {
+        refType = AssetRefLocalPath;
+        fullPath = ref;
+    }
+    else if (regex_match(ref, what, expression3)) // b3)
+    {
+        refType = AssetRefNamedStorage;
+        QString storage = WStringToQString(what[1].str()).trimmed();
+        if (outNamedStorage)
+            *outNamedStorage = storage;
+        fullPath = what[2].str();
+
+        protocol_path = storage + ":";
+        if (outProtocol_Path)
+            *outProtocol_Path = protocol_path;
+        if (outFullRef)
+            *outFullRef = protocol_path;
+    }
+
+    // After the above check, we are left with a fullPath reference that can only contain three parts: directory, local name and subAssetName.
+    // The protocol specifier or named storage part has been stripped off.
+    if (outPath_Filename_SubAssetName)
+        *outPath_Filename_SubAssetName = WStringToQString(fullPath).trimmed();
+
+    // Parse subAssetName if it exists.
+    QString subAssetName = "";
+    wregex expression4(L"(.*?)\\s*#\\s*\"?\\s*(.*?)\\s*\"?\\s*"); // assetRef, "subAssetName". Note: this regex does not parse badly matched '"' signs, but it's a minor issue. (e.g. 'assetRef, ""jeejee' is incorrectly accepted) .
+    if (regex_match(fullPath, what, expression4))
+    {
+        wstring assetRef = what[1].str();
+        subAssetName = WStringToQString(what[2].str()).trimmed();
+        if (outSubAssetName)
+            *outSubAssetName = subAssetName;
+        fullPath = assetRef; // Remove the subAssetName from the asset ref so that the parsing can continue without the subAssetName in it.
+    }
+
+    QString fullPathRef = WStringToQString(fullPath);
+    if (outPath_Filename)
+        *outPath_Filename = fullPathRef;
+
+    // Now the only thing that is left is to split the base filename and the path for the asset.
+    int lastPeriodIndex = fullPathRef.lastIndexOf(".");
+    int directorySeparatorIndex = fullPathRef.lastIndexOf("/");
+    if (lastPeriodIndex == -1 || lastPeriodIndex < directorySeparatorIndex)
+        directorySeparatorIndex = fullPathRef.length()-1;
+
+    QString path = GuaranteeTrailingSlash(fullPathRef.left(directorySeparatorIndex+1).trimmed());
+    if (outPath)
+        *outPath = path;
+    protocol_path += path;
+    if (outProtocol_Path)
+        *outProtocol_Path += path;
+    QString assetFilename = fullPathRef.mid(directorySeparatorIndex+1);
+    if (outFilename)
+        *outFilename = assetFilename;
+    if (outFullRef)
+    {
+        *outFullRef += fullPathRef;
+        if (!subAssetName.isEmpty())
+            if (subAssetName.contains(' '))
+                *outFullRef += ", \"" + subAssetName + "\"";
+            else
+                *outFullRef += ", " + subAssetName;
+    }
+
+    if (outFullRefNoSubAssetName)
+        *outFullRefNoSubAssetName = GuaranteeTrailingSlash(protocol_path) + assetFilename;
+    return refType;
+}
+
 
 AssetAPI::FileQueryResult AssetAPI::QueryFileLocation(QString sourceRef, QString baseDirectory, QString &outFilePath)
 {
@@ -510,6 +768,16 @@ AssetTransferPtr AssetAPI::RequestAsset(QString assetRef, QString assetType)
         assetType = GetResourceTypeFromResourceFileName(assetRef.toLower().toStdString().c_str());
 
     assetRef = assetRef.trimmed();
+
+    QString subAsset = "";
+
+    // Parse subasset from assetRef, e.g. "local://cat.dae#leg.material" to "leg.material"
+    ParseAssetRef(assetRef, 0, 0, 0, 0, 0, 0, 0, &subAsset, 0, 0);
+
+    if (!subAsset.isEmpty())
+    {
+
+    }
 
     if (assetRef.isEmpty())
     {
